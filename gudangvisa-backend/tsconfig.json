@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    /* --- Language & runtime --- */
+    "target": "ES2023",
+    "lib": ["ES2023"],
+
+    /* --- Node ESM --- */
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    // "module": "ESNext",
+    // "module": "NodeNext",
+    // "moduleResolution": "bundler",
+    // "moduleResolution": "NodeNext",
+
+    /* --- Project structure --- */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* --- Type safety --- */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedParameters": true,
+    "noUnusedLocals": true,
+
+    /* --- Interop & correctness --- */
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    /* --- Build output --- */
+    "sourceMap": true,
+    "removeComments": true,
+
+    /* --- Performance --- */
+    "skipLibCheck": true,
+
+    /* --- Environment types --- */
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types", "./src/types"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

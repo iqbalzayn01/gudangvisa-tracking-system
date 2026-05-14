@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GudangVisa — Tailwind v4 Theme
+   Dark-mode-first design system with Inter font
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* Surface colors (dark mode) */
+  --color-dark: #0f1117;
+  --color-panel: #181a23;
+  --color-panel-light: #1f2130;
+  --color-edge: #2a2d3a;
+
+  /* Text colors */
+  --color-heading: #f1f3f9;
+  --color-body: #b0b6c8;
+  --color-subtle: #6b7394;
+
+  /* Fonts */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+/* ─── Base Layer ────────────────────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-dark);
+    color: var(--color-body);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background: #6366f1;
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-edge);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-subtle);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
