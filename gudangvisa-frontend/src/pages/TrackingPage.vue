@@ -7,6 +7,8 @@ import StatusStepper from '../components/StatusStepper.vue';
 import TrackingTimeline from '../components/TrackingTimeline.vue';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import { formatDate } from '../utils/formatters';
+import PublicNavbar from '../components/PublicNavbar.vue';
+import PublicFooter from '../components/PublicFooter.vue';
 
 const code = ref('');
 const result = ref<PublicTrackingResult | null>(null);
@@ -30,12 +32,13 @@ async function handleTrack(): Promise<void> {
 </script>
 
 <template>
+  <PublicNavbar />
   <div
-    class="min-h-screen bg-dark/75 bg-[url('/design/background-public-tracking.png')] bg-cover bg-center bg-fixed bg-no-repeat bg-blend-overlay"
+    class="min-h-screen flex flex-col justify-between bg-dark/75 bg-[url('/design/background-public-tracking.png')] bg-cover bg-center bg-fixed bg-no-repeat bg-blend-overlay"
   >
     <!-- Hero section -->
     <header
-      class="flex justify-center items-center px-6 pt-20 pb-16 text-center"
+      class="flex justify-center items-center my-auto px-6 pt-32 pb-16 text-center"
     >
       <div class="max-w-xl mx-auto">
         <div
@@ -100,7 +103,7 @@ async function handleTrack(): Promise<void> {
     </header>
 
     <!-- Results -->
-    <main v-if="error || result || isSearching" class="px-6 py-10 max-sm:py-6">
+    <main v-if="error || result || isSearching" class="px-6 pb-30 max-sm:py-6">
       <div class="max-w-2xl mx-auto">
         <div
           v-if="error"
@@ -229,4 +232,5 @@ async function handleTrack(): Promise<void> {
       </div>
     </main>
   </div>
+  <PublicFooter />
 </template>
