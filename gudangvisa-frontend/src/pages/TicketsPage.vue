@@ -10,6 +10,7 @@ import StatusBadge from '../components/StatusBadge.vue';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { formatDateTime } from '../utils/formatters';
+import { copyToClipboard } from '../utils/clipboard';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -440,10 +441,46 @@ async function handleDelete(): Promise<void> {
             @click="router.push(`/tickets/${t.id}`)"
           >
             <td class="px-4 py-3 border-b border-edge">
-              <code
-                class="text-[13px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md font-mono whitespace-nowrap"
-                v-html="highlight(t.trackingCode)"
-              ></code>
+              <div class="flex items-center gap-2">
+                <code
+                  class="text-[13px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md font-mono whitespace-nowrap"
+                  v-html="highlight(t.trackingCode)"
+                ></code>
+                <button
+                  class="p-1 rounded-md text-subtle hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer shrink-0"
+                  title="Copy Code"
+                  @click.stop="
+                    copyToClipboard(
+                      t.trackingCode,
+                      'Tracking code copied to clipboard',
+                    )
+                  "
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path
+                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
             </td>
             <td
               class="px-4 py-3 text-sm text-heading font-medium border-b border-edge"
