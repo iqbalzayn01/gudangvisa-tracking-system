@@ -13,7 +13,7 @@ const authStore = useAuthStore();
 authStore.initialize();
 
 import { useThemeStore } from "./stores/theme.store";
-const themeStore = useThemeStore();
+useThemeStore();
 // themeStore.updateTheme() is called in its setup
 
 app.use(router);
