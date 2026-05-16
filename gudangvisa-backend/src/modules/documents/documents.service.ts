@@ -1,5 +1,5 @@
 import { DocumentRepository } from './documents.repository.js';
-import { AppError } from '../../utils/AppError.js';
+
 import {
   validateFileMetadata,
   generateStoragePath,

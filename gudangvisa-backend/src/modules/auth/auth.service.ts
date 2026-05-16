@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
 import { AuthRepository } from './auth.repository.js';
 import { ENV } from '../../config/env.js';

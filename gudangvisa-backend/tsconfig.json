@@ -13,7 +13,7 @@
     // "moduleResolution": "NodeNext",
 
     /* --- Project structure --- */
-    "rootDir": "./src",
+    "rootDir": ".",
     "outDir": "./dist",
 
     /* --- Type safety --- */
@@ -42,6 +42,6 @@
     "types": ["node"],
     "typeRoots": ["./node_modules/@types", "./src/types"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "api/**/*"],
   "exclude": ["node_modules", "dist"]
 }
