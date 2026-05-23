@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { trackByCode } from '../api/tracking.api';
 import type { PublicTrackingResult } from '../types';
 import StatusBadge from '../components/StatusBadge.vue';
@@ -14,6 +14,28 @@ const code = ref('');
 const result = ref<PublicTrackingResult | null>(null);
 const isSearching = ref(false);
 const error = ref('');
+
+/** Documents with COMPLETED or APPROVED status that have a download URL — shown in the dedicated download card. */
+const completedDocuments = computed(
+  () =>
+    result.value?.documents.filter(
+      (doc) =>
+        (doc.status === 'COMPLETED' || doc.status === 'APPROVED') &&
+        doc.fileDownloadUrl,
+    ) ?? [],
+);
+
+const documentsResult = result.value?.documents.map((doc) => doc.status);
+
+console.log(documentsResult);
+
+/** Remaining public documents that are NOT completed/approved — shown in the generic Documents list. */
+const otherDocuments = computed(
+  () =>
+    result.value?.documents.filter(
+      (doc) => doc.status !== 'COMPLETED' && doc.status !== 'APPROVED',
+    ) ?? [],
+);
 
 async function handleTrack(): Promise<void> {
   if (!code.value.trim()) return;
@@ -160,15 +182,124 @@ async function handleTrack(): Promise<void> {
             <StatusStepper :current-status="result.currentStatus" />
           </div>
 
-          <!-- Public documents -->
+          <!-- Completed documents download card -->
           <div
-            v-if="result.documents.length > 0"
+            v-if="
+              result.currentStatus === 'COMPLETED' &&
+              completedDocuments.length > 0
+            "
+            class="relative bg-panel border border-emerald-500/30 rounded-2xl p-6 overflow-hidden"
+          >
+            <!-- Subtle gradient accent along the top -->
+            <div
+              class="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-emerald-500 via-emerald-400 to-teal-400"
+            />
+
+            <!-- Header -->
+            <div class="flex items-start gap-3 mb-2">
+              <div
+                class="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-base font-semibold text-emerald-400">
+                  Your Documents Are Ready
+                </h3>
+                <p class="text-sm text-subtle mt-0.5 leading-relaxed">
+                  Your {{ result.serviceType }} documents have been processed
+                  and approved. Download them below.
+                </p>
+              </div>
+            </div>
+
+            <!-- Document list -->
+            <div class="flex flex-col gap-2.5 mt-5">
+              <div
+                v-for="doc in completedDocuments"
+                :key="doc.id"
+                class="flex items-center gap-3 p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/10 transition-colors hover:bg-emerald-500/10"
+              >
+                <!-- File icon -->
+                <div
+                  class="w-10 h-10 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                    />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </div>
+
+                <!-- Name & type -->
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-heading truncate">
+                    {{ doc.docName }}
+                  </p>
+                  <p class="text-xs text-subtle">{{ doc.docType }}</p>
+                </div>
+
+                <!-- Download button -->
+                <a
+                  :href="doc.fileDownloadUrl!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shrink-0"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Other public documents -->
+          <div
+            v-if="otherDocuments.length > 0"
             class="bg-panel border border-edge rounded-2xl p-6"
           >
             <h3 class="text-base font-semibold text-heading mb-4">Documents</h3>
             <div class="flex flex-col gap-3">
               <div
-                v-for="doc in result.documents"
+                v-for="doc in otherDocuments"
                 :key="doc.id"
                 class="flex items-center gap-3 p-3 rounded-lg bg-panel-light"
               >

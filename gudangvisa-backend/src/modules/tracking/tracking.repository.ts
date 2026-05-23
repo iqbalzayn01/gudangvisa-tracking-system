@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { trackingTickets, trackingHistories } from '../../db/schema.js';
+import { trackingTickets, trackingHistories, documents } from '../../db/schema.js';
 import { AppError } from '../../utils/AppError.js';
 
 type DocStatus =
@@ -40,6 +40,16 @@ export class TrackingRepository {
   }
 
   /**
+   * Find a ticket by ID (lightweight, for status validation).
+   */
+  async findById(id: string) {
+    return await db.query.trackingTickets.findFirst({
+      where: eq(trackingTickets.id, id),
+      columns: { id: true, currentStatus: true },
+    });
+  }
+
+  /**
    * Update ticket status and insert a history entry (for staff via tracking).
    */
   async updateStatusWithHistory(
@@ -59,6 +69,12 @@ export class TrackingRepository {
       if (!updatedTicket) {
         throw new AppError(404, 'Ticket not found or failed to update.');
       }
+
+      // Sync document statuses to match the new ticket status
+      await tx
+        .update(documents)
+        .set({ status: statusName })
+        .where(eq(documents.ticketId, ticketId));
 
       await tx.insert(trackingHistories).values({
         ticketId: updatedTicket.id,
