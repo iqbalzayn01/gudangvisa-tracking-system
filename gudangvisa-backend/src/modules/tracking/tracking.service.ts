@@ -66,6 +66,7 @@ export class TrackingService {
 
   /**
    * Update ticket status via tracking module (for staff).
+   * Rejects updates if the ticket is already COMPLETED.
    */
   async processStatusUpdate(
     ticketId: string,
@@ -74,6 +75,17 @@ export class TrackingService {
     descriptionInternal: string | null,
     staffId: string,
   ) {
+    const ticket = await this.repository.findById(ticketId);
+    if (!ticket) {
+      throw new AppError(404, 'Ticket not found.');
+    }
+    if (ticket.currentStatus === 'COMPLETED') {
+      throw new AppError(
+        400,
+        'Cannot update status: this ticket has already been completed.',
+      );
+    }
+
     return await this.repository.updateStatusWithHistory(
       ticketId,
       statusName,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getTicketById, updateTicketStatus } from '../api/tickets.api';
 import {
@@ -34,6 +34,10 @@ const notify = useNotificationStore();
 const ticket = ref<TrackingTicket | null>(null);
 const documents = ref<TicketDocument[]>([]);
 const isLoading = ref(true);
+
+const isCompleted = computed(
+  () => ticket.value?.currentStatus === 'COMPLETED',
+);
 
 // Status update state
 const showStatusForm = ref(false);
@@ -87,6 +91,11 @@ async function handleStatusUpdate(): Promise<void> {
       descriptionInternal: descInternal.value.trim() || undefined,
     });
     ticketStore.updateStatusLocal(ticket.value.id, newStatus.value);
+    // Sync local document statuses to match the updated ticket status
+    documents.value = documents.value.map((doc) => ({
+      ...doc,
+      status: newStatus.value,
+    }));
     notify.success('Status updated');
     showStatusForm.value = false;
     descPublic.value = '';
@@ -240,14 +249,42 @@ async function handleDocDelete(id: string): Promise<void> {
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-base font-semibold text-heading">Update Status</h2>
           <button
-            v-if="!showStatusForm"
+            v-if="!showStatusForm && !isCompleted"
             class="px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
             @click="showStatusForm = true"
           >
             Update
           </button>
         </div>
-        <div v-if="showStatusForm" class="flex flex-col gap-3">
+
+        <!-- Completed notice -->
+        <div
+          v-if="isCompleted"
+          class="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-emerald-400 shrink-0"
+          >
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <p class="text-sm text-emerald-300">
+            This ticket has been completed. No further status updates are
+            allowed.
+          </p>
+        </div>
+
+        <!-- Status update form -->
+        <div v-if="showStatusForm && !isCompleted" class="flex flex-col gap-3">
           <select
             v-model="newStatus"
             class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none cursor-pointer appearance-none focus:border-indigo-500"

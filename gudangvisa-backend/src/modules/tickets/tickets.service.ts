@@ -54,6 +54,7 @@ export class TicketsService {
 
   /**
    * Update ticket status and add a history entry.
+   * Rejects updates if the ticket is already COMPLETED.
    */
   async updateTicketStatus(
     ticketId: string,
@@ -62,6 +63,17 @@ export class TicketsService {
     descriptionInternal: string | null,
     staffId: string,
   ) {
+    const ticket = await this.repository.findById(ticketId);
+    if (!ticket) {
+      throw new AppError(404, 'Ticket not found.');
+    }
+    if (ticket.currentStatus === 'COMPLETED') {
+      throw new AppError(
+        400,
+        'Cannot update status: this ticket has already been completed.',
+      );
+    }
+
     return await this.repository.updateStatusWithHistory(
       ticketId,
       statusName,

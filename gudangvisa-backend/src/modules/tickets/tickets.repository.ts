@@ -107,6 +107,12 @@ export class TicketsRepository {
         throw new AppError(404, 'Ticket not found or failed to update.');
       }
 
+      // Sync document statuses to match the new ticket status
+      await tx
+        .update(documents)
+        .set({ status: statusName })
+        .where(eq(documents.ticketId, ticketId));
+
       await tx.insert(trackingHistories).values({
         ticketId: updatedTicket.id,
         statusName,
