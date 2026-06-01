@@ -1,64 +1,75 @@
-# Gudang Visa Project Workspace
+# Gudang Visa Tracking System
 
-## Project Overview
+A web-based monitoring & tracking system for immigration documents (VISA / KITAS) for **Gudang Visa Bali Indonesia**. Staff and admins manage applications through an internal dashboard, while clients track their own document processing — and download completed files such as e-Visas — through a dedicated self-service portal.
 
-This workspace contains the **Gudang Visa** project, which consists of a backend REST API and a frontend web application. It is a document tracking system for VISA, KITAS, and PASSPORT documents, where staff/admins manage tickets and clients can publicly track their application status.
+See [`PRD.md`](./PRD.md) for the full product requirement document.
 
-### Architecture
-- **Backend (`gudangvisa-backend/`)**: A REST API built with Node.js, Express 5, and TypeScript.
-- **Frontend (`gudangvisa-frontend/`)**: A Single Page Application (SPA) built with Vue 3, Vite, and TypeScript.
+## Architecture
 
-## Technology Stack
+| Part         | Directory   | Stack                                                              |
+| ------------ | ----------- | ------------------------------------------------------------------ |
+| **Backend**  | `server/`   | Node.js · Express 5 · TypeScript · Drizzle ORM · PostgreSQL (Supabase) |
+| **Frontend** | `client/`   | Vue 3 (`<script setup>`) · Vite · TypeScript · Tailwind CSS · Pinia · Vue Router |
 
-### Backend
-- **Runtime**: Node.js
-- **Language**: TypeScript
-- **Framework**: Express 5
-- **Database ORM**: Drizzle ORM
-- **Database**: PostgreSQL (via Supabase)
-- **Storage**: Supabase Storage (with signed URLs)
-- **Authentication**: JWT (using `jose` and `bcrypt`)
+The database uses an optimized **7-table** schema (`staff_accounts`, `client_accounts`, `applications`, `application_documents`, `tracking_history`, `notifications`, `audit_logs`). Biometric scheduling and the verification checklist are merged into the `applications` table (the checklist as JSONB) to eliminate JOIN overhead.
 
-### Frontend
-- **Framework**: Vue 3 (Composition API / `<script setup>`)
-- **Build Tool**: Vite
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **State Management**: Pinia
-- **Routing**: Vue Router
-- **HTTP Client**: Axios
+## Key Features
 
-## Building and Running
+- **Dual-table authentication** — internal staff/admin (`/api/auth/internal`) and external clients (`/api/auth/client`) are fully isolated, each with its own JWT access token + httpOnly refresh cookie.
+- **Staff/Admin dashboard** — applications, biometric scheduling, document verification checklist, user management (admin), and a global audit log viewer (admin).
+- **Audit trail** — every staff/admin action (CREATE, UPDATE, DELETE, STATUS_CHANGE, LOGIN, UPLOAD) is logged with **Timestamp, User, Action, Entity, and IP Address**, filterable by action and entity.
+- **Client tracking portal** — clients log in at `/portal/login`, view their applications' status timeline at `/portal`, and download completed documents via temporary signed URLs (ownership-verified).
+- **Live updates** — the client portal and public tracking page refresh status automatically via polling (no manual refresh); polling pauses on hidden tabs and is cleaned up on unmount.
+- **Direct-to-storage uploads** — files are uploaded straight to Supabase Storage using signed URLs; the API only stores the path.
 
-### Backend Commands
-Navigate to `gudangvisa-backend/` to run these commands:
+## Getting Started
 
-- `npm install`: Install dependencies.
-- `npm run dev`: Start the development server with hot reload (using `tsx`).
-- `npm run build`: Compile TypeScript to JavaScript.
-- `npm start`: Run the compiled production build.
-- `npm run db:generate`: Generate Drizzle database migration files.
-- `npm run db:migrate`: Apply migrations to the database.
-- `npm run seed`: Create the initial admin account (`admin@gudangvisa.com` / `admin123`).
+### Backend (`server/`)
 
-**Environment Variables Required:** `PORT`, `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_KEY`.
+```bash
+cd server
+npm install
+cp .env.example .env   # then fill in DATABASE_URL, JWT secrets, SUPABASE_* …
+npm run db:generate && npm run db:migrate
+npm run seed           # creates admin + 100 demo clients (idempotent)
+npm run dev            # http://localhost:8000
+```
 
-### Frontend Commands
-Navigate to `gudangvisa-frontend/` to run these commands:
+Seed credentials:
 
-- `npm install`: Install dependencies.
-- `npm run dev`: Start the Vite development server.
-- `npm run build`: Type-check and build for production.
-- `npm run preview`: Locally preview the production build.
+| Account | Email                                          | Password   |
+| ------- | ---------------------------------------------- | ---------- |
+| Admin   | `admin@gudangvisa.com`                         | `admin123` |
+| Clients | `client1@gudangvisa.com` … `client100@…`       | `client123`|
+
+> The seed is idempotent — re-running it only inserts accounts that don't already exist.
+
+### Frontend (`client/`)
+
+```bash
+cd client
+npm install
+# .env: VITE_BASE_URL=http://localhost:8000/api
+npm run dev            # http://localhost:5173
+```
+
+## Routes (frontend)
+
+| Path             | Audience      | Description                                  |
+| ---------------- | ------------- | -------------------------------------------- |
+| `/login`         | Staff / Admin | Internal dashboard login                     |
+| `/dashboard`     | Staff / Admin | Overview                                     |
+| `/applications`  | Staff / Admin | Manage applications                          |
+| `/biometrics`    | Staff / Admin | Biometric scheduling                         |
+| `/audit-logs`    | Admin         | Global audit log viewer                      |
+| `/users`         | Admin         | Staff account management                     |
+| `/tracking`      | Public        | Track by reference code (no login)           |
+| `/portal/login`  | Client        | Client portal login                          |
+| `/portal`        | Client        | Client's own applications + downloads        |
 
 ## Development Conventions
 
-- **TypeScript**: Both frontend and backend heavily rely on TypeScript for type safety. Ensure strict typing is maintained.
-- **Vue 3**: The frontend uses Vue 3's `<script setup>` syntax for Single File Components (SFCs).
-- **Backend Structure**:
-  - Modular architecture under `src/modules/` (e.g., auth, users, clients, tickets).
-  - Uses Drizzle ORM for database interactions (`src/db/`).
-  - Implements role-based access control (Admin/Staff) using middleware.
-- **Database**: The database is hosted on Supabase, and Drizzle ORM is used for defining schemas and running migrations.
-- **File Uploads**: Files are not uploaded directly through the API server. Instead, the backend generates Supabase Storage signed URLs, and the client uploads the file directly to Supabase.
-- **API Responses**: Standardized JSON response format: `{ "success": boolean, "message": string, "data": object | null }`.
+- **TypeScript** everywhere; both apps type-check clean (`tsc --noEmit` / `vue-tsc --noEmit`).
+- **Backend** is modular under `server/src/modules/<feature>/` (controller · service · repository · routes · validation), with Drizzle schema in `server/src/db/`.
+- **RBAC** is enforced via auth + role middleware; audit logging is wired through a shared `recordAudit` helper.
+- **API responses** follow `{ "success": boolean, "message": string, "data": object | null }`.

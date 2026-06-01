@@ -9,7 +9,7 @@
 | Field             | Detail                                                                                         |
 | ----------------- | ---------------------------------------------------------------------------------------------- |
 | **Nama Proyek**   | Gudang Visa Tracking System                                                                    |
-| **Versi Dokumen** | 1.6.1                                                                                          |
+| **Versi Dokumen** | 1.7.0                                                                                          |
 | **Tanggal**       | 1 June 2026                                                                                    |
 | **Penulis**       | Tim Pengembang Gudang Visa                                                                     |
 | **Tech Stack**    | Vue.js · TailwindCSS · ShadCN-Vue · Node.js · Express.js · PostgreSQL · Supabase · Drizzle ORM |
@@ -220,10 +220,10 @@ flowchart LR
 | ---- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | F-01 | **Dashboard Admin**               | Overview seluruh pengajuan, manajemen user staf, analytics, audit log global.                                                           |
 | F-02 | **Dashboard Staff**               | CRM alur kerja internal: input pengajuan client, checklist verifikasi, update status.                                                   |
-| F-03 | **Portal Client**                 | Timeline progress dokumen, download e-Visa PDF, notifikasi update (memerlukan login client).                                            |
+| F-03 | **Portal Client**                 | Login klien terpisah (`/portal/login`) menuju dashboard pelacakan pribadi (`/portal`): timeline progress dokumen, download e-Visa/berkas PDF yang telah selesai, pembaruan status _live_ otomatis (tanpa refresh manual). |
 | F-04 | **Authentication Multi-Table**    | Login terpisah untuk Internal (`staff_accounts`) dan External (`client_accounts`) dengan enkripsi password hash lokal dan JWT terpisah. |
 | F-05 | **Row Level Security & Isolasi**  | RLS PostgreSQL via Supabase untuk memproteksi data agar client hanya melihat aplikasinya sendiri berdasarkan `client_id`.               |
-| F-06 | **Audit Trail Internal**          | Log otomatis setiap tindakan admin/staf saat mengubah status aplikasi atau mengunduh berkas.                                            |
+| F-06 | **Audit Trail Internal**          | Log otomatis setiap tindakan admin/staf (CREATE, UPDATE, DELETE, STATUS_CHANGE, LOGIN, UPLOAD) lintas modul. Viewer admin menampilkan kolom **Timestamp, User, Action, Entity, IP Address** dengan filter berdasarkan _action_ dan _entity_. |
 | F-07 | **Notifikasi Real-time**          | Push notification via WebSocket untuk update status pengajuan ke portal client.                                                         |
 | F-08 | **Document Management**           | Upload/download dokumen persyaratan keimigrasian via Supabase Storage dengan access control.                                            |
 | F-09 | **Scheduling Biometrik Terlebur** | Penjadwalan biometrik yang terintegrasi langsung di dalam tabel `applications` untuk eliminasi overhead query JOIN.                     |
@@ -1018,6 +1018,17 @@ sequenceDiagram
 
 - **Assign PIC Lapangan**: Fitur pengisian slot asisten operasional lapangan. Data janji temu (Hari, Jam, Lokasi Kantor Imigrasi) dan asisten pendamping Gudang Visa disimpan langsung sebagai kolom dalam tabel `applications` untuk eliminasi relasi tabel 1-to-1 yang memicu overhead latensi.
 
+### F-03: Client Tracking Portal (Self-Service)
+
+- **Login Klien Terpisah**: Endpoint dan halaman login khusus klien (`/portal/login`) yang terisolasi dari login internal staf/admin. Sesi klien menggunakan _access token_ + _refresh token_ tersendiri (kunci penyimpanan `client_auth_token`) sehingga kebocoran salah satu sesi tidak meng-eskalasi sesi lainnya.
+- **Dashboard Pelacakan Pribadi** (`/portal`): Menampilkan seluruh permohonan milik klien yang sedang login, lengkap dengan _status stepper_, persentase progres, dan _timeline_ riwayat yang ditandai `is_visible_to_client`.
+- **Unduh Dokumen Selesai**: Untuk dokumen yang telah diverifikasi/selesai (mis. e-Visa PDF), klien menekan tombol unduh; backend memverifikasi kepemilikan dokumen (dokumen → aplikasi → `client_id`) lalu mengeluarkan _signed URL_ sementara dari Supabase Storage. Klien tidak pernah dapat mengakses dokumen milik klien lain.
+- **Live Updates**: Status diperbarui otomatis melalui _polling_ berkala tanpa perlu _refresh_ manual (lihat §13.1).
+
+### Demo Data Seeding
+
+- Skrip `npm run seed` (backend) bersifat **idempotent**: membuat akun admin awal bila belum ada, lalu menyisipkan **100 akun klien demo** (`client1@gudangvisa.com` … `client100@gudangvisa.com`, kata sandi seragam `client123`). Akun yang sudah ada (dicocokkan via email) dilewati sehingga skrip aman dijalankan berulang.
+
 ---
 
 ## 11. Keamanan & Otorisasi
@@ -1267,8 +1278,8 @@ api.interceptors.response.use(
 - **State Management**: Pinia (Auth & System state caching)
 - **Router**: Vue Router (dengan Navigation Guard terpisah untuk rute internal & rute klien)
 - **Styling & Components**: TailwindCSS, Radix Vue, & ShadCN-Vue (Premium UI)
-- **HTTP Client**: Axios (dengan Interceptor otomatis untuk menyematkan JWT Header berdasarkan context login)
-- **Realtime**: Supabase Realtime Client JS SDK (WebSockets)
+- **HTTP Client**: Axios (instance terpisah untuk sesi internal & sesi klien, masing-masing dengan Interceptor _silent refresh_ ke endpoint refresh-nya sendiri)
+- **Realtime / Live Updates**: Pembaruan _live_ pada Portal Klien & halaman tracking publik diimplementasikan saat ini melalui **interval polling** (~10 detik) terhadap REST API — otomatis berhenti saat tab tersembunyi (`visibilitychange`) dan dibersihkan saat _unmount_ untuk mencegah _memory leak_. Migrasi ke **Supabase Realtime (WebSocket)** disiapkan sebagai _roadmap_ tanpa mengubah lapisan UI.
 
 ### 13.2 Backend (Express.js API)
 
@@ -1311,3 +1322,10 @@ gantt
 - Komposisi wajah: **50% - 60%** dari luas bingkai foto.
 - Latar belakang foto: Berwarna kontras polos sesuai tipe visa.
 - Masa berlaku paspor minimal: **6 Bulan** dari tanggal rencana kedatangan di Indonesia.
+
+### 15.2 Changelog
+
+| Versi | Tanggal     | Ringkasan Perubahan                                                                                                                                                                                                                                                                                                                          |
+| ----- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.7.0 | 1 Jun 2026  | • Audit trail diaktifkan penuh di seluruh modul (kolom Timestamp, User, Action, Entity, IP Address; filter _action_ & _entity_).<br/>• Portal Klien _self-service_: login klien terpisah (`/portal/login` → `/portal`), unduh dokumen selesai via _signed URL_ dengan verifikasi kepemilikan.<br/>• Halaman manajemen klien dihapus dari dashboard internal; 100 akun klien demo di-_seed_ secara idempotent (`client123`).<br/>• Pembaruan status _live_ via interval polling (tanpa refresh manual) dengan pembersihan listener/timer untuk mencegah _memory leak_. |
+| 1.6.1 | 1 Jun 2026  | Skema 7-tabel teroptimasi (biometrik & checklist terlebur), autentikasi dual-table, RLS, dan arsitektur token XSS-safe.                                                                                                                                                                                                                       |
