@@ -7,21 +7,14 @@ import type {
   UploadUrlResponse,
 } from '../types';
 
-/**
- * Step 1 — Request a signed upload URL from the backend.
- */
 export async function getUploadUrl(payload: UploadUrlPayload): Promise<UploadUrlResponse> {
-  const { data } = await apiClient.post<ApiResponse<UploadUrlResponse>>(
+  const { data } = await apiClient.post<ApiResponse<any>>(
     '/documents/upload-url',
     payload,
   );
   return data.data;
 }
 
-/**
- * Step 2 — Upload the file directly to Supabase Storage using the signed URL.
- * This request bypasses the API server entirely.
- */
 export async function uploadFileToStorage(signedUrl: string, file: File): Promise<void> {
   await fetch(signedUrl, {
     method: 'PUT',
@@ -30,27 +23,43 @@ export async function uploadFileToStorage(signedUrl: string, file: File): Promis
   });
 }
 
-/**
- * Step 3 — Attach a document record to a ticket.
- */
 export async function addDocument(payload: AddDocumentPayload): Promise<TicketDocument> {
-  const { data } = await apiClient.post<ApiResponse<TicketDocument>>('/documents', payload);
-  return data.data;
+  const { data } = await apiClient.post<ApiResponse<any>>('/documents', {
+    applicationId: payload.ticketId,
+    documentType: payload.docType === 'PASSPORT' ? 'passport' : 'other', // fallback map
+    fileName: payload.docName,
+    filePath: payload.storagePath,
+  });
+  return {
+    id: data.data.id,
+    ticketId: data.data.applicationId,
+    docName: data.data.fileName,
+    docType: payload.docType,
+    status: 'IN_REVIEW',
+    fileUrl: data.data.filePath,
+    isPublic: payload.isPublic ?? true,
+    createdAt: data.data.createdAt,
+    fileDownloadUrl: data.data.filePath
+  };
 }
 
-/**
- * Fetch all documents for a ticket (with signed download URLs).
- */
 export async function getDocumentsByTicket(ticketId: string): Promise<TicketDocument[]> {
-  const { data } = await apiClient.get<ApiResponse<TicketDocument[]>>(
-    `/documents/ticket/${ticketId}`,
+  const { data } = await apiClient.get<ApiResponse<any[]>>(
+    `/documents/application/${ticketId}`,
   );
-  return data.data;
+  return data.data.map((d: any) => ({
+    id: d.id,
+    ticketId: d.applicationId,
+    docName: d.fileName,
+    docType: 'VISA',
+    status: d.status === 'pending' ? 'IN_REVIEW' : d.status === 'verified' ? 'APPROVED' : 'REJECTED',
+    fileUrl: d.filePath,
+    isPublic: true,
+    createdAt: d.createdAt,
+    fileDownloadUrl: d.filePath
+  }));
 }
 
-/**
- * Delete a document (DB record + storage file). Admin only.
- */
 export async function deleteDocument(id: string): Promise<void> {
   await apiClient.delete(`/documents/${id}`);
 }

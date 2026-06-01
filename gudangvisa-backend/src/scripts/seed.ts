@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { db } from '../db/index.js';
-import { users } from '../db/schema.js';
+import { staffAccounts } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 
 async function runSeed() {
@@ -8,8 +8,8 @@ async function runSeed() {
 
   try {
     // Check if the admin account already exists
-    const existingSuperAdmin = await db.query.users.findFirst({
-      where: eq(users.email, 'admin@gudangvisa.com'),
+    const existingSuperAdmin = await db.query.staffAccounts.findFirst({
+      where: eq(staffAccounts.email, 'admin@gudangvisa.com'),
     });
 
     if (existingSuperAdmin) {
@@ -18,14 +18,16 @@ async function runSeed() {
     }
 
     // Hash the default password
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hashedPassword = await bcrypt.hash('admin123', 12);
 
     // Insert data into the database
-    await db.insert(users).values({
+    await db.insert(staffAccounts).values({
       fullName: 'Super Admin',
       email: 'admin@gudangvisa.com',
       passwordHash: hashedPassword,
-      role: 'ADMIN',
+      role: 'admin',
+      phone: null,
+      isActive: true,
     });
 
     console.log('✅ First Admin account created successfully!');

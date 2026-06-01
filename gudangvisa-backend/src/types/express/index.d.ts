@@ -1,21 +1,16 @@
 // src/types/express/index.d.ts
 
-// This file extends the default Express Request object.
-// Now, TypeScript will automatically know that `req.user` exists
-// in all your controllers and middlewares.
+import type { StaffJwtPayload, ClientJwtPayload } from '../index.js';
 
 declare global {
   namespace Express {
     export interface Request {
-      user: {
-        id: string;
-        fullName: string;
-        email: string;
-        role: string;
-      };
+      /** Populated by requireStaffAuth middleware */
+      staffUser?: StaffJwtPayload;
+      /** Populated by requireClientAuth middleware */
+      clientUser?: ClientJwtPayload;
     }
   }
 }
 
-// This empty export is required to make this file a module
 export {};

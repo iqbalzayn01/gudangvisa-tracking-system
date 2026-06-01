@@ -1,21 +1,23 @@
 import apiClient from './client';
 import type { ApiResponse, LoginPayload, LoginResponse, User } from '../types';
 
-/**
- * Authenticate a user and receive a JWT token.
- */
 export async function login(payload: LoginPayload): Promise<LoginResponse> {
-  const { data } = await apiClient.post<ApiResponse<LoginResponse>>(
-    '/auth/login',
+  const { data } = await apiClient.post<ApiResponse<any>>(
+    '/auth/internal/login',
     payload,
   );
-  return data.data;
+  return {
+    user: { fullName: data.data.user.fullName, role: data.data.user.role === 'admin' ? 'ADMIN' : 'STAFF' },
+    token: data.data.accessToken
+  };
 }
 
-/**
- * Fetch the currently authenticated user's profile.
- */
 export async function getProfile(): Promise<User> {
-  const { data } = await apiClient.get<ApiResponse<User>>('/users/me');
-  return data.data;
+  const { data } = await apiClient.get<ApiResponse<any>>('/staff-accounts/me');
+  return {
+    id: data.data.id,
+    fullName: data.data.fullName,
+    email: data.data.email,
+    role: data.data.role === 'admin' ? 'ADMIN' : 'STAFF'
+  };
 }

@@ -1,16 +1,11 @@
 import axios from 'axios';
 import type { ApiResponse } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:8000/api';
 
-/**
- * Pre-configured Axios instance for all API calls.
- *
- * - Automatically attaches the JWT token from localStorage.
- * - Redirects to /login on 401 (expired / missing token).
- */
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true, // required for httpOnly refresh cookies
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -18,30 +13,41 @@ const apiClient = axios.create({
   timeout: 15_000,
 });
 
-// ── Request Interceptor ──────────────────────────────────────────────────────
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
-
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
   return config;
 });
 
-// ── Response Interceptor ─────────────────────────────────────────────────────
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
+  async (error) => {
+    const originalRequest = error.config;
 
-      if (
-        !window.location.pathname.startsWith('/tracking') &&
-        !window.location.pathname.startsWith('/login')
-      ) {
-        window.location.href = '/login';
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        // Attempt to refresh token
+        const refreshResponse = await axios.post(`${API_BASE_URL}/auth/internal/refresh`, {}, {
+          withCredentials: true
+        });
+        const newToken = refreshResponse.data.data.accessToken;
+        localStorage.setItem('auth_token', newToken);
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+
+        if (
+          !window.location.pathname.startsWith('/tracking') &&
+          !window.location.pathname.startsWith('/login')
+        ) {
+          window.location.href = '/login';
+        }
       }
     }
 

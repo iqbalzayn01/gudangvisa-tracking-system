@@ -1,25 +1,29 @@
 import apiClient from './client';
 import type { ApiResponse, CreateUserPayload, User } from '../types';
 
-/**
- * Fetch the full list of users. Admin only.
- */
 export async function getUsers(): Promise<User[]> {
-  const { data } = await apiClient.get<ApiResponse<User[]>>('/users');
-  return data.data;
+  const { data } = await apiClient.get<ApiResponse<any[]>>('/staff-accounts');
+  return data.data.map((u: any) => ({
+    id: u.id,
+    fullName: u.fullName,
+    email: u.email,
+    role: u.role === 'admin' ? 'ADMIN' : 'STAFF'
+  }));
 }
 
-/**
- * Create a new staff member. Admin only.
- */
 export async function createUser(payload: CreateUserPayload): Promise<User> {
-  const { data } = await apiClient.post<ApiResponse<User>>('/users', payload);
-  return data.data;
+  const { data } = await apiClient.post<ApiResponse<any>>('/staff-accounts', {
+    ...payload,
+    role: 'staff'
+  });
+  return {
+    id: data.data.id,
+    fullName: data.data.fullName,
+    email: data.data.email,
+    role: data.data.role === 'admin' ? 'ADMIN' : 'STAFF'
+  };
 }
 
-/**
- * Delete a user by ID. Admin only.
- */
 export async function deleteUser(id: string): Promise<void> {
-  await apiClient.delete(`/users/${id}`);
+  await apiClient.delete(`/staff-accounts/${id}`);
 }

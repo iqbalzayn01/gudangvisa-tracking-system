@@ -2,18 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError.js';
 
 /**
- * Middleware to restrict access based on user roles.
- * @param allowedRoles Array of allowed roles (example: ['ADMIN', 'STAFF'])
+ * Middleware to restrict access based on internal staff roles.
+ * Must be used AFTER requireStaffAuth middleware.
+ * @param allowedRoles Array of allowed roles (e.g., ['admin', 'staff'])
  */
-export const authorizeRoles = (...allowedRoles: string[]) => {
+export const authorizeRoles = (...allowedRoles: Array<'admin' | 'staff'>) => {
   return (req: Request, _res: Response, next: NextFunction) => {
-    // Ensure the user is authenticated first
-    if (!req.user) {
-      return next(new AppError(401, 'Authentication required.'));
+    if (!req.staffUser) {
+      return next(
+        new AppError(401, 'Authentication required. Staff account not found.'),
+      );
     }
 
-    // Check if the user's role is in the allowed list
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!allowedRoles.includes(req.staffUser.role)) {
       return next(
         new AppError(
           403,
@@ -22,7 +23,6 @@ export const authorizeRoles = (...allowedRoles: string[]) => {
       );
     }
 
-    // Role is allowed, continue
     next();
   };
 };
