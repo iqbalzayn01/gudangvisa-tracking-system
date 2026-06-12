@@ -4,6 +4,7 @@ import router from "./router";
 import { useAuthStore } from "./stores/auth.store";
 import App from "./App.vue";
 import "./assets/main.css";
+import i18n from "./i18n";
 
 const app = createApp(App);
 
@@ -17,4 +18,5 @@ useThemeStore();
 // themeStore.updateTheme() is called in its setup
 
 app.use(router);
+app.use(i18n);
 app.mount("#app");

@@ -3,10 +3,9 @@
 </script>
 
 <template>
-  <footer class="bg-panel border-t border-edge mt-auto">
+  <footer class="bg-dark border-t border-edge mt-auto">
     <div class="max-w-7xl mx-auto px-6 py-12">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-        <!-- Left Side: Contact & Socials -->
         <div class="flex flex-col gap-5">
           <div class="flex items-center gap-2 mb-2">
             <img
@@ -65,7 +64,6 @@
             </a>
           </div>
 
-          <!-- Social Icons -->
           <div class="flex items-center gap-4 mt-2">
             <a
               href="#"
@@ -135,76 +133,71 @@
           </div>
         </div>
 
-        <!-- Middle Side: Company -->
         <div class="flex flex-col gap-5 md:px-8">
-          <h3 class="text-base font-semibold text-white">Company</h3>
+          <h3 class="text-base font-semibold text-white">
+            {{ $t("footer.company.title") }}
+          </h3>
           <ul class="flex flex-col gap-3 text-sm text-subtle">
             <li>
               <a
-                href="#"
+                href="#services"
                 class="hover:text-white hover:underline transition-colors"
-                >Company Profile</a
+                >{{ $t("nav.services") }}</a
               >
             </li>
             <li>
               <a
-                href="#"
+                href="#faq"
                 class="hover:text-white hover:underline transition-colors"
-                >Achievement</a
+                >{{ $t("nav.faq") }}</a
               >
             </li>
             <li>
               <a
-                href="#"
+                href="#about"
                 class="hover:text-white hover:underline transition-colors"
-                >Careers</a
-              >
-            </li>
-            <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Contact Us</a
+                >{{ $t("nav.about") }}</a
               >
             </li>
           </ul>
         </div>
 
-        <!-- Right Side: Services -->
         <div class="flex flex-col gap-5">
-          <h3 class="text-base font-semibold text-white">Services</h3>
+          <h3 class="text-base font-semibold text-white">
+            {{ $t("footer.services.title") }}
+          </h3>
           <ul class="flex flex-col gap-3 text-sm text-subtle">
             <li>
               <a
                 href="#"
                 class="hover:text-white hover:underline transition-colors"
-                >Check Document Status</a
+                >{{ $t("footer.services.track") }}</a
               >
             </li>
             <li>
               <a
                 href="#"
                 class="hover:text-white hover:underline transition-colors"
-                >Guide Visa</a
+                >{{ $t("footer.services.guide") }}</a
               >
             </li>
             <li>
               <a
                 href="#"
                 class="hover:text-white hover:underline transition-colors"
-                >Express Services</a
+                >{{ $t("footer.services.express") }}</a
               >
             </li>
           </ul>
         </div>
       </div>
 
-      <!-- Copyright -->
       <div
         class="mt-12 pt-6 border-t border-edge flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-subtle"
       >
         <p>
-          &copy; {{ new Date().getFullYear() }} GudangVisa. All rights reserved.
+          &copy; {{ new Date().getFullYear() }} GudangVisa.
+          {{ $t("footer.rights") }}
         </p>
         <div class="flex gap-4">
           <a href="#" class="hover:text-white transition-colors"

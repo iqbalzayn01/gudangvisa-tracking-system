@@ -6,96 +6,101 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @theme {
-    /* Dynamic colors using CSS variables */
-    --color-dark: var(--bg-main);
-    --color-panel: var(--bg-panel);
-    --color-panel-light: var(--bg-panel-light);
-    --color-edge: var(--border-color);
+  --color-dark: var(--bg-main);
+  --color-panel: var(--bg-panel);
+  --color-panel-light: var(--bg-panel-light);
+  --color-edge: var(--border-color);
 
-    /* Text colors */
-    --color-heading: var(--text-heading);
-    --color-body: var(--text-body);
-    --color-subtle: var(--text-subtle);
+  /* Text colors */
+  --color-heading: var(--text-heading);
+  --color-body: var(--text-body);
+  --color-subtle: var(--text-subtle);
 
-    /* Fonts */
-    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-    --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  /* Fonts */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --color-indigo-400: #fb7185;
+  --color-indigo-500: #e11d48;
+  --color-indigo-600: #be123c;
 }
 
 /* ─── Light Mode (Default) ────────────────────────────────────────────────── */
 :root {
-    --bg-main: #f9fafb;
-    --bg-panel: #ffffff;
-    --bg-panel-light: #f3f4f6;
-    --border-color: #e5e7eb;
+  --bg-main: #f9fafb;
+  --bg-panel: #ffffff;
+  --bg-panel-light: #f3f4f6;
+  --border-color: #e5e7eb;
 
-    --text-heading: #111827;
-    --text-body: #4b5563;
-    --text-subtle: #9ca3af;
+  --text-heading: #111827;
+  --text-body: #4b5563;
+  --text-subtle: #9ca3af;
 }
 
 /* ─── Dark Mode ─────────────────────────────────────────────────────────── */
 .dark {
-    --bg-main: #0f1117;
-    --bg-panel: #181a23;
-    --bg-panel-light: #1f2130;
-    --border-color: #2a2d3a;
+  --bg-main: #0f1117;
+  --bg-panel: #181a23;
+  --bg-panel-light: #1f2130;
+  --border-color: #2a2d3a;
 
-    --text-heading: #f1f3f9;
-    --text-body: #b0b6c8;
-    --text-subtle: #6b7394;
+  --text-heading: #f1f3f9;
+  --text-body: #b0b6c8;
+  --text-subtle: #6b7394;
 }
 
 /* ─── Base Layer ────────────────────────────────────────────────────────── */
 @layer base {
-    *,
-    *::before,
-    *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-    }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-    html {
-        font-size: 16px;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        text-rendering: optimizeLegibility;
-        transition:
-            background-color 0.3s ease,
-            color 0.3s ease;
-    }
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
+  }
 
-    body {
-        font-family: var(--font-sans);
-        background: var(--color-dark);
-        color: var(--color-body);
-        line-height: 1.5;
-        min-height: 100vh;
-    }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-dark);
+    color: var(--color-body);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
 
-    ::selection {
-        background: #6366f1;
-        color: #fff;
-    }
+  ::selection {
+    background: #bf1e2d;
+    color: #fff;
+  }
 
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: var(--color-edge);
-        border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--color-subtle);
-    }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-edge);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-subtle);
+  }
 
-    a {
-        color: inherit;
-        text-decoration: none;
-    }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
 }
