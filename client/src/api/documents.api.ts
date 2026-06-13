@@ -3,9 +3,18 @@ import type {
   ApiResponse,
   ApplicationDocument,
   AddDocumentPayload,
+  DocType,
   UploadUrlPayload,
   UploadUrlResponse,
 } from '../types';
+
+// The UI's document categories don't map 1:1 onto the server's documentType
+// enum, so VISA/KITAS fall back to the closest valid value ('final_evisa').
+const DOC_TYPE_TO_SERVER: Record<DocType, string> = {
+  PASSPORT: 'passport',
+  VISA: 'final_evisa',
+  KITAS: 'final_evisa',
+};
 
 export async function getUploadUrl(payload: UploadUrlPayload): Promise<UploadUrlResponse> {
   const { data } = await apiClient.post<ApiResponse<any>>(
@@ -26,9 +35,9 @@ export async function uploadFileToStorage(signedUrl: string, file: File): Promis
 export async function addDocument(payload: AddDocumentPayload): Promise<ApplicationDocument> {
   const { data } = await apiClient.post<ApiResponse<any>>('/documents', {
     applicationId: payload.applicationId,
-    documentType: payload.docType === 'PASSPORT' ? 'passport' : 'other', // fallback map
+    documentType: DOC_TYPE_TO_SERVER[payload.docType],
     fileName: payload.docName,
-    filePath: payload.storagePath,
+    storagePath: payload.storagePath,
   });
   return {
     id: data.data.id,

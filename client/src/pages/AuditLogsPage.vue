@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed, onMounted, watch } from 'vue';
 import { getAuditLogs } from '../api/audit-logs.api';
 import type { AuditLog, AuditAction } from '../types';
@@ -99,7 +100,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="max-w-6xl">
+  <div class="w-full max-w-640">
     <div class="flex justify-between items-start mb-6 gap-4 flex-wrap">
       <div>
         <h1 class="text-[28px] font-bold text-heading mb-1">Audit Logs</h1>
@@ -107,8 +108,9 @@ onMounted(load);
           Track all system activities and changes made by staff and admins
         </p>
       </div>
-      <button
-        class="p-2.5 rounded-full border border-edge text-subtle hover:bg-panel-light transition-colors cursor-pointer"
+      <Button
+        variant="ghost"
+        class="p-2.5 rounded-full border border-edge text-subtle hover:bg-panel-light transition-colors cursor-pointer h-auto"
         :disabled="isLoading"
         title="Refresh"
         @click="load"
@@ -129,7 +131,7 @@ onMounted(load);
             d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
           />
         </svg>
-      </button>
+      </Button>
     </div>
 
     <!-- Search & filters -->
@@ -197,7 +199,9 @@ onMounted(load);
               <th class="font-medium px-4 py-3 whitespace-nowrap">User</th>
               <th class="font-medium px-4 py-3 whitespace-nowrap">Action</th>
               <th class="font-medium px-4 py-3">Entity</th>
-              <th class="font-medium px-4 py-3 whitespace-nowrap">IP Address</th>
+              <th class="font-medium px-4 py-3 whitespace-nowrap">
+                IP Address
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -238,7 +242,9 @@ onMounted(load);
               <!-- Entity -->
               <td class="px-4 py-3">
                 <div class="flex flex-col">
-                  <span class="text-heading">{{ entityLabel(log.entity) }}</span>
+                  <span class="text-heading">{{
+                    entityLabel(log.entity)
+                  }}</span>
                   <span class="text-xs text-subtle">{{ log.description }}</span>
                   <span
                     v-if="log.entityId"

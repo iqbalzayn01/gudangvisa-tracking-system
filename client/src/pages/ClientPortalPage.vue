@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Home } from 'lucide-vue-next';
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useClientAuthStore } from '../stores/client-auth.store';
@@ -106,23 +108,22 @@ onUnmounted(() => {
       class="h-16 bg-panel border-b border-edge flex items-center justify-between gap-4 px-6 sticky top-0 z-30"
     >
       <div class="flex items-center gap-2.5">
-        <span class="text-red-500">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <RouterLink
+          to="/portal"
+          class="flex items-center gap-2 cursor-pointer h-auto rounded-full"
+        >
+          <img
+            src="/design/logo-square.png"
+            alt="Gudang Visa Logo"
+            width="32"
+            height="32"
+            class="shrink-0"
+          />
+          <span
+            class="text-lg font-bold text-black dark:text-white tracking-wide"
+            >GudangVisa</span
           >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-        </span>
-        <span class="text-lg font-bold text-heading">GudangVisa</span>
+        </RouterLink>
         <span class="text-xs text-subtle hidden sm:inline">Client Portal</span>
       </div>
 
@@ -136,7 +137,9 @@ onUnmounted(() => {
             <span
               class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
             />
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            <span
+              class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"
+            />
           </span>
           Live
         </span>
@@ -148,8 +151,18 @@ onUnmounted(() => {
           <p class="text-[11px] text-subtle">{{ clientAuth.user?.email }}</p>
         </div>
 
-        <button
-          class="p-2 rounded-lg text-subtle hover:bg-rose-500/10 hover:text-rose-400 transition-all cursor-pointer"
+        <Button
+          variant="ghost"
+          class="p-2 rounded-lg text-subtle hover:bg-panel-light hover:text-heading transition-all cursor-pointer h-auto"
+          title="Home"
+          @click="router.push('/portal')"
+        >
+          <Home :size="18" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          class="p-2 rounded-lg text-subtle hover:bg-rose-500/10 hover:text-rose-400 transition-all cursor-pointer h-auto"
           title="Logout"
           @click="handleLogout"
         >
@@ -168,7 +181,7 @@ onUnmounted(() => {
             <polyline points="16 17 21 12 16 7" />
             <line x1="21" y1="12" x2="9" y2="12" />
           </svg>
-        </button>
+        </Button>
       </div>
     </header>
 
@@ -283,8 +296,9 @@ onUnmounted(() => {
                   </p>
                   <p class="text-xs text-subtle">Approved document</p>
                 </div>
-                <button
-                  class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer"
+                <Button
+                  variant="ghost"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer h-auto"
                   :disabled="downloadingId === doc.id"
                   @click="download(doc)"
                 >
@@ -309,7 +323,7 @@ onUnmounted(() => {
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
                   Download
-                </button>
+                </Button>
               </div>
             </div>
           </div>

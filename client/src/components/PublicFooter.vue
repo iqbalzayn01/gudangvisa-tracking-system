@@ -1,5 +1,13 @@
 <script setup lang="ts">
-// Public Footer Component
+import { Button } from '@/components/ui/button';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
+function scrollToSection(id: string) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 </script>
 
 <template>
@@ -16,7 +24,8 @@
               height="32"
               class="shrink-0"
             />
-            <span class="text-xl font-bold text-white tracking-wide"
+            <span
+              class="text-xl font-bold text-black dark:text-white tracking-wide"
               >GudangVisa</span
             >
           </div>
@@ -24,7 +33,7 @@
           <div class="flex flex-col gap-3 text-sm text-subtle">
             <a
               href="tel:02112345678"
-              class="inline-flex items-center gap-3 hover:text-white transition-colors"
+              class="inline-flex items-center gap-3 hover:text-black transition-colors"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -45,7 +54,7 @@
             </a>
             <a
               href="mailto:support@gudangvisa.com"
-              class="inline-flex items-center gap-3 hover:text-white transition-colors"
+              class="inline-flex items-center gap-3 hover:text-black transition-colors"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -135,65 +144,80 @@
           </div>
         </div>
 
-        <!-- Middle Side: Company -->
+        <!-- Middle Side: Navigation -->
         <div class="flex flex-col gap-5 md:px-8">
-          <h3 class="text-base font-semibold text-white">Company</h3>
+          <h3 class="text-base font-semibold text-black dark:text-white">
+            {{ t('footer.navTitle') }}
+          </h3>
           <ul class="flex flex-col gap-3 text-sm text-subtle">
             <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Company Profile</a
+              <Button
+                variant="ghost"
+                type="button"
+                class="hover:text-black hover:bg-transparent transition-colors cursor-pointer h-auto p-0"
+                @click="scrollToSection('layanan')"
               >
+                {{ t('footer.nav.services') }}
+              </Button>
             </li>
             <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Achievement</a
+              <Button
+                variant="ghost"
+                type="button"
+                class="hover:text-black hover:bg-transparent transition-colors cursor-pointer h-auto p-0"
+                @click="scrollToSection('faq')"
               >
+                {{ t('footer.nav.faq') }}
+              </Button>
             </li>
             <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Careers</a
+              <Button
+                variant="ghost"
+                type="button"
+                class="hover:text-black hover:bg-transparent transition-colors cursor-pointer h-auto p-0"
+                @click="scrollToSection('tentang')"
               >
-            </li>
-            <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Contact Us</a
-              >
+                {{ t('footer.nav.about') }}
+              </Button>
             </li>
           </ul>
         </div>
 
         <!-- Right Side: Services -->
         <div class="flex flex-col gap-5">
-          <h3 class="text-base font-semibold text-white">Services</h3>
+          <h3 class="text-base font-semibold text-black dark:text-white">
+            {{ t('footer.servicesTitle') }}
+          </h3>
           <ul class="flex flex-col gap-3 text-sm text-subtle">
             <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Check Document Status</a
+              <Button
+                variant="ghost"
+                type="button"
+                class="hover:text-black hover:bg-transparent transition-colors cursor-pointer h-auto p-0"
+                @click="scrollToSection('top')"
               >
+                {{ t('footer.services.checkStatus') }}
+              </Button>
             </li>
             <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Guide Visa</a
+              <Button
+                variant="ghost"
+                type="button"
+                class="hover:text-black hover:bg-transparent transition-colors cursor-pointer h-auto p-0"
+                @click="scrollToSection('layanan')"
               >
+                {{ t('footer.services.guide') }}
+              </Button>
             </li>
             <li>
-              <a
-                href="#"
-                class="hover:text-white hover:underline transition-colors"
-                >Express Services</a
+              <Button
+                variant="ghost"
+                type="button"
+                class="hover:text-black hover:bg-transparent transition-colors cursor-pointer h-auto p-0"
+                @click="scrollToSection('layanan')"
               >
+                {{ t('footer.services.express') }}
+              </Button>
             </li>
           </ul>
         </div>
@@ -204,15 +228,16 @@
         class="mt-12 pt-6 border-t border-edge flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-subtle"
       >
         <p>
-          &copy; {{ new Date().getFullYear() }} GudangVisa. All rights reserved.
+          &copy; {{ new Date().getFullYear() }} GudangVisa.
+          {{ t('footer.rights') }}
         </p>
         <div class="flex gap-4">
-          <a href="#" class="hover:text-white transition-colors"
-            >Privacy Policy</a
-          >
-          <a href="#" class="hover:text-white transition-colors"
-            >Terms of Service</a
-          >
+          <a href="#" class="hover:text-black transition-colors">{{
+            t('footer.privacy')
+          }}</a>
+          <a href="#" class="hover:text-black transition-colors">{{
+            t('footer.terms')
+          }}</a>
         </div>
       </div>
     </div>

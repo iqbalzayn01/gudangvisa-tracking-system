@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { useNotificationStore } from '../stores/notification.store';
 
 const store = useNotificationStore();
@@ -27,12 +28,12 @@ const store = useNotificationStore();
 
           <span class="flex-1 leading-snug">{{ notification.message }}</span>
 
-          <button
-            class="p-0.5 rounded text-subtle hover:text-heading transition-colors cursor-pointer"
+          <Button variant="ghost"
+            class="p-0.5 rounded text-subtle hover:text-heading transition-colors cursor-pointer h-auto rounded-full"
             @click="store.remove(notification.id)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+          </Button>
         </div>
       </TransitionGroup>
     </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { Sun, Moon, Menu, Search, X } from 'lucide-vue-next';
@@ -63,7 +64,9 @@ function onClickOutside(e: MouseEvent) {
 }
 
 onMounted(() => document.addEventListener('mousedown', onClickOutside));
-onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside));
+onBeforeUnmount(() =>
+  document.removeEventListener('mousedown', onClickOutside),
+);
 </script>
 
 <template>
@@ -71,12 +74,13 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
     class="h-16 bg-panel border-b border-edge flex items-center justify-between gap-4 px-6 sticky top-0 z-30 transition-colors duration-300"
   >
     <div class="flex items-center gap-4 shrink-0">
-      <button
+      <Button
+        variant="ghost"
         @click="$emit('toggle-sidebar')"
-        class="p-2 rounded-full text-subtle hover:bg-panel-light hover:text-heading md:hidden transition-all"
+        class="p-2 rounded-full text-subtle hover:bg-panel-light hover:text-heading md:hidden transition-all h-auto"
       >
         <Menu :size="20" />
-      </button>
+      </Button>
     </div>
 
     <!-- Global search: client id / document (reference) id -->
@@ -94,13 +98,14 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
           @keydown.enter="submit"
           @keydown.escape="showResults = false"
         />
-        <button
+        <Button
+          variant="ghost"
           v-if="query"
-          class="p-0.5 rounded-full text-subtle hover:text-heading cursor-pointer shrink-0"
+          class="p-0.5 rounded-full text-subtle hover:text-heading cursor-pointer shrink-0 h-auto"
           @click="query = ''"
         >
           <X :size="14" />
-        </button>
+        </Button>
       </div>
 
       <!-- Results dropdown -->
@@ -135,29 +140,36 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
 
     <div class="flex items-center gap-3 shrink-0">
       <!-- Theme Toggle Button -->
-      <button
+      <Button
+        variant="ghost"
         @click="theme.toggleTheme"
-        class="p-2.5 rounded-full bg-panel-light border border-edge text-subtle hover:text-heading hover:border-red-500/30 transition-all duration-200 group relative"
+        class="p-2.5 rounded-full bg-panel-light border border-edge text-subtle hover:text-heading hover:border-red-500/30 transition-all duration-200 group relative h-auto"
         aria-label="Toggle theme"
       >
-        <div class="relative w-5 h-5 overflow-hidden">
+        <div class="relative w-3.5 h-3.5">
           <Transition name="sun-moon">
             <Sun
               v-if="!theme.isDark"
-              class="absolute inset-0 text-amber-500"
+              class="absolute inset-0 m-auto text-red-400"
               :size="20"
             />
-            <Moon v-else class="absolute inset-0 text-red-400" :size="20" />
+            <Moon
+              v-else
+              class="absolute inset-0 m-auto text-red-400"
+              :size="20"
+            />
           </Transition>
         </div>
-      </button>
+      </Button>
 
       <!-- User Profile -->
-      <div
-        class="w-9 h-9 rounded-full bg-red-500/12 text-red-400 flex items-center justify-center font-bold text-sm"
+      <router-link
+        to="/profile"
+        title="Profile"
+        class="w-9 h-9 rounded-full bg-red-500/12 text-red-400 flex items-center justify-center font-bold text-sm hover:ring-2 hover:ring-red-500/30 transition-all"
       >
         {{ auth.user?.fullName?.charAt(0) ?? 'U' }}
-      </div>
+      </router-link>
     </div>
   </header>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 defineProps<{
   title: string;
   message: string;
@@ -27,19 +28,19 @@ const emit = defineEmits<{
         <h3 class="text-lg font-semibold text-heading mb-2">{{ title }}</h3>
         <p class="text-sm text-body leading-relaxed mb-6">{{ message }}</p>
         <div class="flex justify-end gap-2">
-          <button
-            class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
+          <Button variant="ghost"
+            class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
             @click="emit('cancel')"
           >
             {{ cancelText ?? 'Cancel' }}
-          </button>
-          <button
-            class="px-5 py-2.5 text-sm font-semibold rounded-lg text-white transition-colors cursor-pointer"
+          </Button>
+          <Button variant="ghost"
+            class="px-5 py-2.5 text-sm font-semibold rounded-lg text-white transition-colors cursor-pointer h-auto"
             :class="variant === 'danger' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-red-500 hover:bg-red-600'"
             @click="emit('confirm')"
           >
             {{ confirmText ?? 'Confirm' }}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

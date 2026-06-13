@@ -9,17 +9,19 @@ See [`PRD.md`](./PRD.md) for the full product requirement document.
 | Part         | Directory   | Stack                                                              |
 | ------------ | ----------- | ------------------------------------------------------------------ |
 | **Backend**  | `server/`   | Node.js · Express 5 · TypeScript · Drizzle ORM · PostgreSQL (Supabase) |
-| **Frontend** | `client/`   | Vue 3 (`<script setup>`) · Vite · TypeScript · Tailwind CSS · Pinia · Vue Router |
+| **Frontend** | `client/`   | Vue 3 (`<script setup>`) · Vite · TypeScript · Tailwind CSS v4 · reka-ui/shadcn-vue · vue-i18n · Pinia · Vue Router |
 
 The database uses an optimized **7-table** schema (`staff_accounts`, `client_accounts`, `applications`, `application_documents`, `tracking_history`, `notifications`, `audit_logs`). Biometric scheduling and the verification checklist are merged into the `applications` table (the checklist as JSONB) to eliminate JOIN overhead.
 
 ## Key Features
 
-- **Dual-table authentication** — internal staff/admin (`/api/auth/internal`) and external clients (`/api/auth/client`) are fully isolated, each with its own JWT access token + httpOnly refresh cookie.
-- **Staff/Admin dashboard** — applications, biometric scheduling, document verification checklist, user management (admin), and a global audit log viewer (admin).
-- **Audit trail** — every staff/admin action (CREATE, UPDATE, DELETE, STATUS_CHANGE, LOGIN, UPLOAD) is logged with **Timestamp, User, Action, Entity, and IP Address**, filterable by action and entity.
-- **Client tracking portal** — clients log in at `/portal/login`, view their applications' status timeline at `/portal`, and download completed documents via temporary signed URLs (ownership-verified).
-- **Live updates** — the client portal and public tracking page refresh status automatically via polling (no manual refresh); polling pauses on hidden tabs and is cleaned up on unmount.
+- **Dual-table authentication** — internal staff/admin (`/api/auth/internal`) and external clients (`/api/auth/client`) are fully isolated, each with its own JWT access token + httpOnly refresh cookie. Client data isolation is enforced at the application layer (ownership-checked queries), not Postgres RLS.
+- **Staff/Admin dashboard** — applications, biometric scheduling, document verification checklist, client + user management (admin), and a global audit log viewer (admin).
+- **Audit trail** — every staff/admin action (CREATE, UPDATE, DELETE, STATUS_CHANGE, LOGIN, UPLOAD, DOWNLOAD) is logged with **Timestamp, User, Action, Entity, and IP Address**, filterable by action and entity.
+- **Client tracking portal** — clients log in at `/portal/login`, view their applications' status timeline at `/portal/applications`, and download completed documents via temporary signed URLs (ownership-verified). A public tracking landing lives at `/portal`.
+- **Internationalization** — UI ships in Indonesian (default) and English via `vue-i18n`, persisted per browser.
+- **SEO** — per-route meta via `utils/seo.ts`; only the public `/portal` landing is indexable, every private route is `noindex`; `robots.txt` + `sitemap.xml` expose only `/portal`.
+- **Live updates** — the client portal and public tracking landing refresh status automatically via polling (no manual refresh); polling pauses on hidden tabs and is cleaned up on unmount.
 - **Direct-to-storage uploads** — files are uploaded straight to Supabase Storage using signed URLs; the API only stores the path.
 
 ## Getting Started
@@ -55,17 +57,19 @@ npm run dev            # http://localhost:5173
 
 ## Routes (frontend)
 
-| Path             | Audience      | Description                                  |
-| ---------------- | ------------- | -------------------------------------------- |
-| `/login`         | Staff / Admin | Internal dashboard login                     |
-| `/dashboard`     | Staff / Admin | Overview                                     |
-| `/applications`  | Staff / Admin | Manage applications                          |
-| `/biometrics`    | Staff / Admin | Biometric scheduling                         |
-| `/audit-logs`    | Admin         | Global audit log viewer                      |
-| `/users`         | Admin         | Staff account management                     |
-| `/tracking`      | Public        | Track by reference code (no login)           |
-| `/portal/login`  | Client        | Client portal login                          |
-| `/portal`        | Client        | Client's own applications + downloads        |
+| Path                    | Audience      | Description                                  |
+| ----------------------- | ------------- | -------------------------------------------- |
+| `/login`                | Staff / Admin | Internal dashboard login                     |
+| `/dashboard`            | Staff / Admin | Overview                                     |
+| `/profile`              | Staff / Admin | Signed-in user profile                       |
+| `/clients`              | Staff / Admin | Client account management                    |
+| `/applications`         | Staff / Admin | Manage applications (+ create / detail)      |
+| `/biometrics`           | Staff / Admin | Biometric scheduling                         |
+| `/audit-logs`           | Admin         | Global audit log viewer                      |
+| `/users`                | Admin         | Staff account management                     |
+| `/portal`               | Public        | Public tracking landing (no login)           |
+| `/portal/login`         | Client        | Client portal login                          |
+| `/portal/applications`  | Client        | Client's own applications + downloads        |
 
 ## Development Conventions
 

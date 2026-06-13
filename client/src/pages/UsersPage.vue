@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { getUsers, createUser, deleteUser } from '../api/users.api';
 import { useNotificationStore } from '../stores/notification.store';
@@ -164,7 +165,7 @@ async function handleDelete(): Promise<void> {
 </script>
 
 <template>
-  <div class="max-w-4xl">
+  <div class="w-full max-w-640">
     <div class="flex justify-between items-start mb-6 gap-4 flex-wrap">
       <div>
         <h1 class="text-[28px] font-bold text-heading mb-1">User Management</h1>
@@ -172,8 +173,9 @@ async function handleDelete(): Promise<void> {
           Manage staff members and administrators
         </p>
       </div>
-      <button
-        class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer"
+      <Button
+        variant="ghost"
+        class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer h-auto"
         @click="showCreateForm = !showCreateForm"
       >
         <svg
@@ -189,7 +191,7 @@ async function handleDelete(): Promise<void> {
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
         Add Staff
-      </button>
+      </Button>
     </div>
 
     <!-- ── Search & Filter Bar ──────────────────────────────────────────── -->
@@ -224,9 +226,10 @@ async function handleDelete(): Promise<void> {
           class="absolute right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-panel-light border border-edge text-subtle pointer-events-none whitespace-nowrap"
           >Ctrl K</kbd
         >
-        <button
+        <Button
+          variant="ghost"
           v-else
-          class="absolute right-2 p-1 rounded-md bg-panel-light text-subtle hover:text-heading hover:bg-edge transition-colors cursor-pointer"
+          class="absolute right-2 p-1 rounded-md bg-panel-light text-subtle hover:text-heading hover:bg-edge transition-colors cursor-pointer h-auto"
           @click="
             searchInput = '';
             searchQuery = '';
@@ -247,7 +250,7 @@ async function handleDelete(): Promise<void> {
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-        </button>
+        </Button>
       </div>
       <FilterSelect
         v-model="filterField"
@@ -288,15 +291,16 @@ async function handleDelete(): Promise<void> {
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             "{{ searchQuery.trim() }}"
-            <button
-              class="text-subtle hover:text-rose-400 font-bold leading-none cursor-pointer"
+            <Button
+              variant="ghost"
+              class="text-subtle hover:text-rose-400 font-bold leading-none cursor-pointer h-auto rounded-full"
               @click="
                 searchInput = '';
                 searchQuery = '';
               "
             >
               ×
-            </button>
+            </Button>
           </span>
           <span
             v-if="filterField !== 'all'"
@@ -314,12 +318,13 @@ async function handleDelete(): Promise<void> {
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
             {{ activeFieldLabel }}
-            <button
-              class="text-subtle hover:text-rose-400 font-bold leading-none cursor-pointer"
+            <Button
+              variant="ghost"
+              class="text-subtle hover:text-rose-400 font-bold leading-none cursor-pointer h-auto rounded-full"
               @click="filterField = 'all'"
             >
               ×
-            </button>
+            </Button>
           </span>
           <span
             v-if="filterRole !== ''"
@@ -338,12 +343,13 @@ async function handleDelete(): Promise<void> {
               <circle cx="9" cy="7" r="4" />
             </svg>
             {{ filterRole }}
-            <button
-              class="text-subtle hover:text-rose-400 font-bold leading-none cursor-pointer"
+            <Button
+              variant="ghost"
+              class="text-subtle hover:text-rose-400 font-bold leading-none cursor-pointer h-auto rounded-full"
               @click="filterRole = ''"
             >
               ×
-            </button>
+            </Button>
           </span>
         </div>
         <div class="flex items-center gap-3 whitespace-nowrap">
@@ -353,12 +359,13 @@ async function handleDelete(): Promise<void> {
               >of {{ users.length }}</span
             ></span
           >
-          <button
-            class="text-xs text-subtle underline underline-offset-2 hover:text-heading transition-colors cursor-pointer"
+          <Button
+            variant="ghost"
+            class="text-xs text-subtle underline underline-offset-2 hover:text-heading transition-colors cursor-pointer h-auto rounded-full"
             @click="clearAllFilters"
           >
             Clear all
-          </button>
+          </Button>
         </div>
       </div>
     </Transition>
@@ -413,20 +420,22 @@ async function handleDelete(): Promise<void> {
             </div>
           </div>
           <div class="flex justify-end gap-2">
-            <button
+            <Button
+              variant="ghost"
               type="button"
-              class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
+              class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
               @click="showCreateForm = false"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               type="submit"
-              class="px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer"
+              class="px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer h-auto"
               :disabled="isCreating"
             >
               {{ isCreating ? 'Creating…' : 'Create Staff' }}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -504,9 +513,10 @@ async function handleDelete(): Promise<void> {
               {{ u.createdAt ? formatDate(u.createdAt) : '—' }}
             </td>
             <td class="px-4 py-3 border-b border-edge">
-              <button
+              <Button
+                variant="ghost"
                 v-if="u.role !== 'ADMIN'"
-                class="p-1.5 rounded-md text-subtle hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                class="p-1.5 rounded-md text-subtle hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer h-auto"
                 title="Delete"
                 @click="deleteTarget = u"
               >
@@ -524,7 +534,7 @@ async function handleDelete(): Promise<void> {
                     d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
                   />
                 </svg>
-              </button>
+              </Button>
             </td>
           </tr>
         </tbody>
