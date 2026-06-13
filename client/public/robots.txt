@@ -1,0 +1,17 @@
+# GudangVisa — only the public client landing (/portal) is indexable.
+# Login screens, the client portal, and the staff/admin dashboard are private.
+
+User-agent: *
+Allow: /portal$
+Allow: /portal?
+Disallow: /login
+Disallow: /portal/login
+Disallow: /portal/applications
+Disallow: /dashboard
+Disallow: /applications
+Disallow: /clients
+Disallow: /users
+Disallow: /biometrics
+Disallow: /audit-logs
+
+Sitemap: https://gudangvisa-tracking-system.vercel.app/sitemap.xml

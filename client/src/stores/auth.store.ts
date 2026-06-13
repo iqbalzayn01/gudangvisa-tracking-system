@@ -82,6 +82,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * Update editable profile fields locally (frontend-only).
+   *
+   * Persists to the current session/localStorage. Not yet synced to the
+   * server — wire this to a PATCH endpoint when the backend exposes one.
+   */
+  function updateProfileLocal(
+    data: Partial<Pick<User, 'fullName' | 'email'>>,
+  ): void {
+    if (!user.value) return;
+    user.value = { ...user.value, ...data };
+    localStorage.setItem('auth_user', JSON.stringify(user.value));
+  }
+
+  /**
    * Clear all auth state and redirect to login.
    */
   function logout(): void {
@@ -101,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
     initialize,
     login,
     fetchProfile,
+    updateProfileLocal,
     logout,
   };
 });

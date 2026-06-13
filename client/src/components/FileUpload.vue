@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed } from 'vue';
 import { formatFileSize } from '../utils/formatters';
 
@@ -97,13 +98,13 @@ function clear(): void {
         <p class="text-sm font-semibold text-heading truncate">{{ fileInfo?.name }}</p>
         <p class="text-xs text-subtle mt-0.5">{{ fileInfo?.size }}</p>
       </div>
-      <button
-        class="p-1 rounded-md text-subtle hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+      <Button variant="ghost"
+        class="p-1 rounded-md text-subtle hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer h-auto"
         title="Remove file"
         @click="clear"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+      </Button>
     </div>
 
     <!-- Error -->

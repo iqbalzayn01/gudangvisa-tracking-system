@@ -2,41 +2,7 @@
 
 A REST API for the Gudang Visa Tracking System. Internal staff/admins manage immigration applications (VISA / KITAS), and external clients log in to track their own document processing and download completed files (e-Visa, etc.).
 
-> **⚠️ Architecture note (v2.0):** The current codebase uses an optimized **7-table** Drizzle schema, **dual-table authentication**, and routes under **`/api/...`**. The new surface is summarized in [Current Architecture & Endpoints (v2.0)](#current-architecture--endpoints-v20) directly below. The older detailed reference further down (the `/api/v1`, `users`/`tickets` sections) describes a previous iteration and is retained for historical context only.
-
----
-
-## Current Architecture & Endpoints (v2.0)
-
-**Database (7 tables):** `staff_accounts`, `client_accounts`, `applications` (biometric fields + JSONB checklist merged in), `application_documents`, `tracking_history`, `notifications`, `audit_logs`. The authoritative definition lives in [`src/db/schema.ts`](./src/db/schema.ts).
-
-**Authentication (dual-table, isolated):**
-
-| Domain | Login                          | Refresh                          |
-| ------ | ------------------------------ | -------------------------------- |
-| Staff  | `POST /api/auth/internal/login`| `POST /api/auth/internal/refresh`|
-| Client | `POST /api/auth/client/login`  | `POST /api/auth/client/refresh`  |
-
-Each issues a short-lived JWT access token (response body) plus an httpOnly refresh cookie. `app.set('trust proxy', 1)` is enabled so `req.ip` resolves the real client IP behind Vercel/Nginx (used for audit logging and rate limiting).
-
-**Main route groups (all under `/api`):**
-
-| Method(s)        | Endpoint                                  | Auth          | Notes                                            |
-| ---------------- | ----------------------------------------- | ------------- | ------------------------------------------------ |
-| POST/GET/…       | `/staff-accounts`, `/staff-accounts/me`   | Staff/Admin   | Staff management (create/delete are admin)       |
-| POST/GET/DELETE  | `/client-accounts`                        | Staff/Admin   | Client account management                        |
-| POST/GET/PATCH   | `/applications` (+ `/:id/status`, `/:id/biometric`, `/:id/checklist`) | Staff/Admin | Core workflow; DELETE is admin |
-| GET              | `/applications/client/my-applications`    | **Client**    | The logged-in client's own applications          |
-| POST/GET/PATCH   | `/documents` (+ `/upload-url`, `/:id/verify`) | Staff/Admin | Direct-to-Supabase signed-URL uploads            |
-| GET              | `/documents/client/:id/download`          | **Client**    | Signed download URL for a document the client owns |
-| GET              | `/audit-logs?action=&entity=`             | **Admin**     | Audit trail, filterable by action and entity     |
-| GET/PATCH        | `/notifications`, `/notifications/:id/read` | **Client**  | Client notifications                             |
-
-**Audit trail:** Staff/admin actions are recorded through a shared `recordAudit` helper (`src/utils/audit.ts`) capturing actor, action, entity, optional old/new values, and IP. The viewer returns `Timestamp, User, Action, Entity, IP Address`.
-
-**Seeding:** `npm run seed` is idempotent — it creates the admin account (`admin@gudangvisa.com` / `admin123`) if missing, then inserts **100 demo clients** (`client1@gudangvisa.com` … `client100@gudangvisa.com`, all with password `client123`), skipping any that already exist.
-
----
+The API exposes an optimized **7-table** Drizzle schema, **dual-table authentication** (internal staff vs. external clients, fully isolated), and routes under **`/api/...`**. Client data isolation is enforced at the **application layer** (ownership-checked queries on the logged-in `client_id`), not Postgres Row Level Security. The authoritative schema lives in [`src/db/schema.ts`](./src/db/schema.ts).
 
 ## Table of Contents
 
@@ -47,13 +13,10 @@ Each issues a short-lived JWT access token (response body) plus an httpOnly refr
 - [Database Schema](#database-schema)
 - [Authentication](#authentication)
 - [API Reference](#api-reference)
-  - [Auth](#auth)
-  - [Users (Admin Only)](#users-admin-only)
-  - [Clients](#clients)
-  - [Tickets](#tickets)
-  - [Documents (File Attachments)](#documents-file-attachments)
-  - [Tracking (Public)](#tracking-public)
-- [All Endpoints Summary](#all-endpoints-summary)
+- [Audit Trail](#audit-trail)
+- [Documents & Storage](#documents--storage)
+- [Seeding](#seeding)
+- [Deployment (Vercel)](#deployment-vercel)
 - [Error Handling](#error-handling)
 - [License](#license)
 
@@ -61,16 +24,19 @@ Each issues a short-lived JWT access token (response body) plus an httpOnly refr
 
 ## Tech Stack
 
-| Technology           | Purpose                         |
-| -------------------- | ------------------------------- |
-| **Node.js**          | Runtime                         |
-| **TypeScript**       | Language (strict mode)          |
-| **Express 5**        | Web framework                   |
-| **Drizzle ORM**      | Database queries and migrations |
-| **PostgreSQL**       | Database (via Supabase)         |
-| **Supabase Storage** | File storage with signed URLs   |
-| **JWT (jose)**       | Authentication                  |
-| **bcrypt**           | Password hashing                |
+| Technology            | Purpose                                            |
+| --------------------- | -------------------------------------------------- |
+| **Node.js**           | Runtime (v18+)                                      |
+| **TypeScript**        | Language (strict mode)                              |
+| **Express 5**         | Web framework                                       |
+| **Drizzle ORM**       | Database queries and migrations (`drizzle-kit`)     |
+| **PostgreSQL**        | Database (via Supabase), `postgres` driver          |
+| **Supabase Storage**  | File storage with signed URLs                       |
+| **jose**              | JWT signing / verification                          |
+| **bcryptjs**          | Password hashing                                    |
+| **zod**               | Request validation                                  |
+| **helmet · cors · cookie-parser · morgan** | Security headers, CORS w/ credentials, cookie parsing, request logging |
+| **express-rate-limit** | Brute-force protection                             |
 
 ---
 
@@ -79,22 +45,24 @@ Each issues a short-lived JWT access token (response body) plus an httpOnly refr
 ```
 src/
 ├── app.ts                    # Express app setup and middleware
-├── server.ts                 # Server entry point
+├── server.ts                 # Local server entry point
+├── api/
+│   └── index.ts              # Vercel serverless entry (wraps the Express app)
 ├── config/
 │   ├── env.ts                # Environment variables
-│   └── supabase.ts           # Supabase client (service role, storage)
+│   └── supabase.ts           # Supabase client (service role) + bucket name
 ├── db/
 │   ├── index.ts              # Database connection
-│   └── schema.ts             # 7-table definitions and relations
+│   └── schema.ts             # 7-table definitions, enums, and relations
 ├── middlewares/
 │   ├── auth.middleware.ts     # requireStaffAuth / requireClientAuth (JWT)
-│   ├── role.middleware.ts     # Role-based access control
+│   ├── role.middleware.ts     # authorizeRoles('admin', 'staff')
 │   ├── error.middleware.ts    # Global error handler
 │   ├── validate.middleware.ts # Zod request validation
 │   └── upload.middleware.ts   # Deprecated (signed URLs now)
 ├── modules/                  # Feature modules: controller · service · repository · routes · validation
-│   ├── auth-internal/        # Staff/admin login + refresh
-│   ├── auth-client/          # Client login + refresh
+│   ├── auth-internal/        # Staff/admin login + refresh + logout
+│   ├── auth-client/          # Client login + refresh + logout
 │   ├── staff-accounts/       # Staff/admin management
 │   ├── client-accounts/      # Client account management
 │   ├── applications/         # Core workflow (status, biometric, checklist) + client view
@@ -104,7 +72,7 @@ src/
 ├── scripts/
 │   └── seed.ts               # Idempotent seeder (admin + 100 demo clients)
 ├── types/
-│   ├── index.ts              # Shared TypeScript types
+│   ├── index.ts              # Shared types (ApiResponse, StaffJwtPayload, ClientJwtPayload, ChecklistItem)
 │   └── express/index.d.ts    # Express Request augmentation (staffUser / clientUser)
 └── utils/
     ├── AppError.ts           # Custom error class
@@ -145,33 +113,31 @@ PORT=8000
 NODE_ENV="development"
 DATABASE_URL="your-supabase-database-url"
 
-# JWT
+# JWT (access = 15m, refresh = 7d — lifetimes are fixed in code)
 JWT_SECRET="your-access-secret"
 JWT_REFRESH_SECRET="your-refresh-secret"
-JWT_EXPIRES_IN="15m"
-JWT_REFRESH_EXPIRES_IN="7d"
 
 # Supabase
 SUPABASE_URL="https://your-project.supabase.co"
-SUPABASE_SERVICE_KEY="your-service-role-key"
+SUPABASE_SERVICE_KEY="your-service-role-key"   # SUPABASE_KEY is also accepted
 BUCKETID="gudangvisa-bucket"
 
 # CORS — the frontend origin allowed to send credentials
-FRONTEND_URL="http://localhost:5173"
+FRONTEND_URL="http://localhost:5173"   # defaults to http://localhost:3000 if unset
 ```
 
 **Where to find these values:**
 
-| Variable       | Where to find it                                                                        |
-| -------------- | --------------------------------------------------------------------------------------- |
-| `DATABASE_URL` | Supabase Dashboard → Project Settings → Database → Connection string (Transaction mode) |
-| `JWT_SECRET`   | Any random string. Generate one with: `openssl rand -hex 32`                            |
-| `SUPABASE_URL` | Supabase Dashboard → Project Settings → API → Project URL                               |
-| `SUPABASE_KEY` | Supabase Dashboard → Project Settings → API → `anon` or `service_role` key              |
+| Variable               | Where to find it                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| `DATABASE_URL`         | Supabase Dashboard → Project Settings → Database → Connection string (Transaction mode) |
+| `JWT_SECRET`           | Any random string. Generate one with: `openssl rand -hex 32`                            |
+| `SUPABASE_URL`         | Supabase Dashboard → Project Settings → API → Project URL                               |
+| `SUPABASE_SERVICE_KEY` | Supabase Dashboard → Project Settings → API → `service_role` key                        |
+
+> The token lifetimes (access 15 min / refresh 7 days) are constants in [`src/utils/jwt.ts`](./src/utils/jwt.ts); there are no `JWT_EXPIRES_IN` env vars.
 
 ### 5. Set up the database
-
-Generate and apply the database tables:
 
 ```bash
 npm run db:generate
@@ -195,7 +161,185 @@ Go to your Supabase Dashboard → **Storage** and create a bucket with these set
 npm run seed
 ```
 
-This is **idempotent** — it creates the bootstrap admin (if missing) and 100 demo client accounts, skipping any that already exist:
+See [Seeding](#seeding) for what this creates.
+
+### 8. Start the server
+
+```bash
+# Development (hot reload)
+npm run dev
+
+# Production
+npm run build
+npm start
+```
+
+The server starts at `http://localhost:8000`.
+
+---
+
+## Available Scripts
+
+| Command               | Description                                |
+| --------------------- | ------------------------------------------ |
+| `npm run dev`         | Start dev server with hot reload (`tsx`)   |
+| `npm run build`       | Compile TypeScript to `dist/`              |
+| `npm start`           | Run the compiled production build          |
+| `npm run seed`        | Seed admin + 100 demo clients (idempotent) |
+| `npm run db:generate` | Generate database migration files          |
+| `npm run db:migrate`  | Apply migrations to the database           |
+
+---
+
+## Database Schema
+
+The schema has **7 tables**, defined in [`src/db/schema.ts`](./src/db/schema.ts). Biometric scheduling (a 1-to-1 relation) and the verification checklist (as JSONB) are merged into `applications` to eliminate JOIN overhead.
+
+| Table                   | Purpose                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `staff_accounts`        | Internal admin/staff accounts (`role`: `admin` \| `staff`)                               |
+| `client_accounts`       | External client accounts (email, passport, nationality, phone)                           |
+| `applications`          | Core record: reference number, visa type, status, progress, `checklist` (JSONB), and merged biometric fields |
+| `application_documents` | Uploaded documents (type, file path, verification status)                                |
+| `tracking_history`      | Status-change timeline (`fromStatus` → `toStatus`, `isVisibleToClient`)                  |
+| `notifications`         | Per-client notifications                                                                 |
+| `audit_logs`            | Staff/admin action log (actor, action, entity, old/new values, IP)                       |
+
+**Native enums:** `internal_role`, `application_status` (16 stages, `draft` → `completed`/`rejected`/`cancelled`/`on_hold`), `visa_type` (`B211A`, `KITAS_WORKING`, `KITAS_SPOUSE`, `KITAS_INVESTOR`, `KITAS_RETIREMENT`), `document_type` (`passport`, `photo`, `sponsor_letter`, `company_nib`, `bank_statement`, `rejection_letter`, `final_evisa`), `document_status` (`pending` \| `verified` \| `rejected`), `biometric_status` (`not_scheduled` \| `scheduled` \| `completed` \| `rescheduled` \| `cancelled` \| `no_show`).
+
+The `applications.checklist` JSONB holds an array of `{ name, isChecked, checkedAt?, checkedByStaffId? }`.
+
+---
+
+## Authentication
+
+Two **independent** dual-table sessions, signed with [`jose`](https://github.com/panva/jose):
+
+| Domain | Login                            | Refresh                            | Token payload                                    |
+| ------ | -------------------------------- | ---------------------------------- | ------------------------------------------------ |
+| Staff  | `POST /api/auth/internal/login`  | `POST /api/auth/internal/refresh`  | `{ id, fullName, email, role, accountType: 'internal' }` |
+| Client | `POST /api/auth/client/login`    | `POST /api/auth/client/refresh`    | `{ id, fullName, email, accountType: 'client' }`         |
+
+- **Access token** — 15 minutes, signed with `JWT_SECRET`, returned in the response body (the frontend keeps it in memory/Pinia). Send it as `Authorization: Bearer <token>`.
+- **Refresh token** — 7 days, signed with `JWT_REFRESH_SECRET`, set as an httpOnly cookie named **`gv_refresh_token`** (`secure` in production, `sameSite: 'strict'`, `path: '/api'`).
+- Middleware: `requireStaffAuth` (verifies `accountType === 'internal'`, populates `req.staffUser`) and `requireClientAuth` (verifies `accountType === 'client'`, populates `req.clientUser`). Admin-only routes additionally pass through `authorizeRoles('admin')`.
+- `app.set('trust proxy', 1)` is enabled so `req.ip` resolves the real client IP behind Vercel/Nginx (used for audit logging and rate limiting).
+
+**Rate limiting:** 100 requests / 15 min per IP across `/api`; a stricter 20 / 15 min on the auth routes (`/api/auth/internal`, `/api/auth/client`).
+
+---
+
+## API Reference
+
+**Base URL:** `http://localhost:8000` · **All routes are under `/api`.** Responses follow:
+
+```json
+{ "success": true, "message": "Description of what happened", "data": {} }
+```
+
+Auth column: **Public** (no token), **Staff** (`admin` or `staff`), **Admin** (admin only), **Client** (client token).
+
+### Auth
+
+| Method | Endpoint                       | Auth   | Body / Notes                          |
+| ------ | ------------------------------ | ------ | ------------------------------------- |
+| POST   | `/api/auth/internal/login`     | Public | `{ email, password }` → staff session |
+| POST   | `/api/auth/internal/refresh`   | Public | Reads `gv_refresh_token` cookie       |
+| POST   | `/api/auth/internal/logout`    | Public | Clears the refresh cookie             |
+| POST   | `/api/auth/client/login`       | Public | `{ email, password }` → client session |
+| POST   | `/api/auth/client/refresh`     | Public | Reads `gv_refresh_token` cookie       |
+| POST   | `/api/auth/client/logout`      | Public | Clears the refresh cookie             |
+
+### Staff Accounts
+
+| Method | Endpoint                    | Auth  | Body / Notes                                            |
+| ------ | --------------------------- | ----- | ------------------------------------------------------- |
+| GET    | `/api/staff-accounts/me`    | Staff | Current staff/admin profile                             |
+| POST   | `/api/staff-accounts`       | Admin | `{ fullName, email, password, role?, phone? }`          |
+| GET    | `/api/staff-accounts`       | Admin | List all staff/admin accounts                           |
+| DELETE | `/api/staff-accounts/:id`   | Admin | Delete a staff account                                  |
+
+### Client Accounts
+
+| Method | Endpoint                     | Auth  | Body / Notes                                                       |
+| ------ | ---------------------------- | ----- | ----------------------------------------------------------------- |
+| POST   | `/api/client-accounts`       | Staff | `{ fullName, email, password, passportNumber, nationality, phone? }` |
+| GET    | `/api/client-accounts`       | Staff | List all clients                                                  |
+| GET    | `/api/client-accounts/:id`   | Staff | Get one client                                                    |
+| PATCH  | `/api/client-accounts/:id`   | Admin | `{ fullName?, nationality?, phone? }` (email/passport not editable) |
+| DELETE | `/api/client-accounts/:id`   | Admin | Delete a client account                                           |
+
+### Applications
+
+| Method | Endpoint                                   | Auth   | Body / Notes                                                                 |
+| ------ | ------------------------------------------ | ------ | --------------------------------------------------------------------------- |
+| POST   | `/api/applications`                        | Staff  | `{ clientId, visaType, notes? }` — generates a unique reference number      |
+| GET    | `/api/applications`                        | Staff  | List all applications                                                       |
+| GET    | `/api/applications/:id`                    | Staff  | Application detail (documents, tracking history)                            |
+| PATCH  | `/api/applications/:id/status`             | Staff  | `{ status, description, isVisibleToClient? }` — appends tracking history    |
+| PATCH  | `/api/applications/:id/biometric`          | Staff  | `{ biometricStatus, biometricDate?, biometricTime?, biometricLocation?, fieldAssistantName?, fieldAssistantPhone? }` |
+| PATCH  | `/api/applications/:id/checklist`          | Staff  | `{ itemIndex, isChecked }` — toggles one JSONB checklist item              |
+| DELETE | `/api/applications/:id`                    | Admin  | Delete an application (and its documents/history/files)                     |
+| GET    | `/api/applications/client/my-applications` | Client | The logged-in client's own applications                                    |
+
+### Documents
+
+> Mounted at `/api/documents`. Uploads use signed URLs — files go directly from the browser to Supabase Storage. See [Documents & Storage](#documents--storage).
+
+| Method | Endpoint                                 | Auth   | Body / Notes                                                       |
+| ------ | ---------------------------------------- | ------ | ----------------------------------------------------------------- |
+| POST   | `/api/documents/upload-url`              | Staff  | `{ fileName, contentType, fileSize? }` → `{ signedUrl, storagePath, token }` |
+| POST   | `/api/documents`                         | Staff  | `{ applicationId, documentType, fileName, storagePath }`          |
+| GET    | `/api/documents/application/:applicationId` | Staff | Documents for an application (+ temporary signed download URLs)   |
+| PATCH  | `/api/documents/:id/verify`              | Staff  | `{ status: 'verified' \| 'rejected', rejectionReason? }`          |
+| DELETE | `/api/documents/:id`                     | Admin  | Delete a document and its storage file                            |
+| GET    | `/api/documents/client/:id/download`     | Client | Signed download URL for a document the client owns (ownership-verified) |
+
+### Audit Logs
+
+| Method | Endpoint                                | Auth  | Notes                                          |
+| ------ | --------------------------------------- | ----- | ---------------------------------------------- |
+| GET    | `/api/audit-logs?action=&entity=`       | Admin | Audit trail, filterable by action and entity   |
+| GET    | `/api/audit-logs/:id`                   | Admin | Single audit-log entry                         |
+
+### Notifications
+
+| Method | Endpoint                          | Auth   | Notes                              |
+| ------ | --------------------------------- | ------ | ---------------------------------- |
+| GET    | `/api/notifications`              | Client | The logged-in client's notifications |
+| PATCH  | `/api/notifications/:id/read`     | Client | Mark a notification as read        |
+
+---
+
+## Audit Trail
+
+Staff/admin actions are recorded through a shared `recordAudit` helper ([`src/utils/audit.ts`](./src/utils/audit.ts)) capturing actor, action, entity, optional old/new values, and IP (honoring `X-Forwarded-For` behind the trusted proxy). Audit writes never break the main request — failures are logged and swallowed.
+
+**Actions:** `CREATE`, `UPDATE`, `DELETE`, `STATUS_CHANGE`, `LOGIN`, `UPLOAD`, `DOWNLOAD`. The admin viewer surfaces `Timestamp, User, Action, Entity, IP Address` and filters by `action` and `entity`.
+
+---
+
+## Documents & Storage
+
+Documents are file attachments linked to an application. The API uses **signed URLs** — files move directly between the browser and Supabase Storage, never through the API server. Helpers live in [`src/utils/storage.ts`](./src/utils/storage.ts).
+
+**Restrictions:** max **2 MB**, types **JPG / PNG / PDF**. Download URLs are signed and expire after **1 hour**.
+
+**Upload flow (3 steps):**
+
+```
+1. Browser → API        : POST /api/documents/upload-url   → { signedUrl, storagePath }
+2. Browser → Supabase   : PUT the file directly to signedUrl
+3. Browser → API        : POST /api/documents              → attach { applicationId, documentType, fileName, storagePath }
+```
+
+Clients download their own files via `GET /api/documents/client/:id/download`, which verifies ownership (document → application → `client_id`) before issuing a temporary signed URL.
+
+---
+
+## Seeding
+
+`npm run seed` is **idempotent** — it creates the bootstrap admin if missing, then inserts 100 demo client accounts, skipping any that already exist (matched by email). Passwords are hashed with `bcryptjs` (12 rounds).
 
 | Account | Email                                    | Password    |
 | ------- | ---------------------------------------- | ----------- |
@@ -204,637 +348,17 @@ This is **idempotent** — it creates the bootstrap admin (if missing) and 100 d
 
 > **Important:** Change the seeded passwords before using this in production. The demo clients are intended for local development and testing of the client tracking portal.
 
-### 8. Start the server
-
-```bash
-# Development (with hot reload)
-npm run dev
-
-# Production
-npm run build
-npm start
-```
-
-The server will start at `http://localhost:8000`.
-
 ---
 
-## Available Scripts
+## Deployment (Vercel)
 
-| Command               | Description                       |
-| --------------------- | --------------------------------- |
-| `npm run dev`         | Start dev server with hot reload  |
-| `npm run build`       | Compile TypeScript to JavaScript  |
-| `npm start`           | Run the compiled production build |
-| `npm run seed`        | Seed admin + 100 demo clients (idempotent) |
-| `npm run db:generate` | Generate database migration files |
-| `npm run db:migrate`  | Apply migrations to the database  |
+[`vercel.json`](./vercel.json) deploys the Express app as a single serverless function:
 
----
+- `buildCommand`: `npm run build` → `outputDirectory`: `dist/`
+- Function entry: `api/index.ts` (wraps the app), `maxDuration: 30`
+- All routes are rewritten to `/api`
 
-## Database Schema
-
-> **Legacy (v1):** The tables below describe the earlier 5-table ticket model. The current schema has **7 tables** with dual-table accounts and merged biometric/checklist columns — see [`src/db/schema.ts`](./src/db/schema.ts) and the [Current Architecture](#current-architecture--endpoints-v20) section above. The rest of this document (v1 `/api/v1` reference) is retained for historical context.
-
-The (legacy) database has 5 tables:
-
-### Users
-
-| Column          | Type         | Description              |
-| --------------- | ------------ | ------------------------ |
-| `id`            | UUID         | Primary key              |
-| `full_name`     | VARCHAR(255) | Full name                |
-| `email`         | VARCHAR(255) | Email (unique)           |
-| `password_hash` | TEXT         | Hashed password          |
-| `role`          | ENUM         | `STAFF` or `ADMIN`       |
-| `created_at`    | TIMESTAMP    | Account creation date    |
-
-### Clients
-
-| Column            | Type         | Description                        |
-| ----------------- | ------------ | ---------------------------------- |
-| `id`              | UUID         | Primary key                        |
-| `name`            | VARCHAR(255) | Client name                        |
-| `passport_number` | VARCHAR(100) | Passport number (optional)         |
-| `contact_number`  | VARCHAR(50)  | Contact number (optional)          |
-| `created_by`      | UUID         | Staff member who registered client |
-| `created_at`      | TIMESTAMP    | Creation date                      |
-
-### Tracking Tickets
-
-| Column           | Type         | Description                                   |
-| ---------------- | ------------ | --------------------------------------------- |
-| `id`             | UUID         | Primary key                                   |
-| `tracking_code`  | VARCHAR(50)  | Unique tracking code (e.g., `GVI-1712345678`) |
-| `client_id`      | UUID         | Reference to the client                       |
-| `service_type`   | VARCHAR(100) | Type of service (e.g., `VISA Extension`)      |
-| `current_status` | ENUM         | Current status (see status flow below)        |
-| `handled_by`     | UUID         | Staff member handling the ticket              |
-| `created_at`     | TIMESTAMP    | Creation date                                 |
-
-### Documents (File Attachments)
-
-| Column       | Type         | Description                      |
-| ------------ | ------------ | -------------------------------- |
-| `id`         | UUID         | Primary key                      |
-| `ticket_id`  | UUID         | Reference to the tracking ticket |
-| `doc_name`   | VARCHAR(255) | Document name                    |
-| `doc_type`   | ENUM         | `VISA`, `KITAS`, or `PASSPORT`   |
-| `status`     | ENUM         | Document status                  |
-| `file_url`   | TEXT         | Storage path in Supabase         |
-| `is_public`  | BOOLEAN      | Visible to client when tracking  |
-| `created_at` | TIMESTAMP    | Creation date                    |
-
-### Tracking Histories
-
-| Column                 | Type      | Description                               |
-| ---------------------- | --------- | ----------------------------------------- |
-| `id`                   | UUID      | Primary key                               |
-| `ticket_id`            | UUID      | Reference to the tracking ticket          |
-| `status_name`          | ENUM      | Status at that point in time              |
-| `description_public`   | TEXT      | Public description (visible to clients)   |
-| `description_internal` | TEXT      | Internal notes (staff only, optional)     |
-| `updated_by`           | UUID      | Staff member who made the change          |
-| `created_at`           | TIMESTAMP | When the change was made                  |
-
-### Document Status Flow
-
-```
-RECEIVED → IN_REVIEW → IN_PROCESS → APPROVED → COMPLETED
-                                   → REJECTED
-```
-
----
-
-## Authentication
-
-This API uses **JWT (JSON Web Token)** for authentication.
-
-### How to authenticate
-
-1. Call `POST /api/v1/auth/login` with your email and password.
-2. You will receive a `token` in the response.
-3. Include this token in all protected requests:
-
-```
-Authorization: Bearer your-token-here
-```
-
-The token expires after **8 hours**.
-
-### Roles
-
-| Role      | Permissions                                                               |
-| --------- | ------------------------------------------------------------------------- |
-| **ADMIN** | Full access. Can manage users, clients, tickets, documents, and deletions |
-| **STAFF** | Can manage clients, create tickets, upload documents, and update status   |
-
----
-
-## API Reference
-
-**Base URL:** `http://localhost:8000`
-
-All responses follow this format:
-
-```json
-{
-  "success": true,
-  "message": "Description of what happened",
-  "data": {}
-}
-```
-
----
-
-### Auth
-
-#### `POST /api/v1/auth/login`
-
-Login and get a JWT token.
-
-**Request body:**
-
-```json
-{
-  "email": "admin@gudangvisa.com",
-  "password": "admin123"
-}
-```
-
-**Response (200):**
-
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "fullName": "Super Admin",
-      "role": "ADMIN"
-    },
-    "token": "eyJhbGciOiJIUzI1NiIs..."
-  }
-}
-```
-
----
-
-### Users (Admin Only)
-
-> All user management routes require an **ADMIN** token (except `GET /me`).
-
-#### `GET /api/v1/users/me`
-
-Get the current logged-in user's profile. Accessible by both ADMIN and STAFF.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Response (200):**
-
-```json
-{
-  "success": true,
-  "message": "User profile retrieved successfully!",
-  "data": {
-    "id": "uuid",
-    "fullName": "Super Admin",
-    "email": "admin@gudangvisa.com",
-    "role": "ADMIN"
-  }
-}
-```
-
-#### `POST /api/v1/users`
-
-Create a new staff member. **Admin only.**
-
-**Headers:** `Authorization: Bearer <admin-token>`
-
-**Request body:**
-
-```json
-{
-  "name": "Staff Budi",
-  "email": "budi@gudangvisa.com",
-  "password": "staff123"
-}
-```
-
-**Response (201):**
-
-```json
-{
-  "success": true,
-  "message": "New staff member added successfully!",
-  "data": {
-    "id": "uuid",
-    "fullName": "Staff Budi",
-    "email": "budi@gudangvisa.com",
-    "role": "STAFF",
-    "createdAt": "..."
-  }
-}
-```
-
-#### `GET /api/v1/users`
-
-Get a list of all users. **Admin only.**
-
-**Headers:** `Authorization: Bearer <admin-token>`
-
-#### `DELETE /api/v1/users/:id`
-
-Delete a user by their ID. **Admin only.**
-
-**Headers:** `Authorization: Bearer <admin-token>`
-
----
-
-### Clients
-
-> All client routes require authentication (STAFF or ADMIN).
-
-#### `POST /api/v1/clients`
-
-Register a new client.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Request body:**
-
-```json
-{
-  "name": "John Doe",
-  "passportNumber": "A12345678",
-  "contactNumber": "+62812345678"
-}
-```
-
-| Field            | Type   | Required | Description               |
-| ---------------- | ------ | -------- | ------------------------- |
-| `name`           | string | Yes      | Client's full name        |
-| `passportNumber` | string | No       | Passport number           |
-| `contactNumber`  | string | No       | Phone or contact number   |
-
-**Response (201):**
-
-```json
-{
-  "success": true,
-  "message": "Client created successfully!",
-  "data": {
-    "id": "client-uuid",
-    "name": "John Doe",
-    "passportNumber": "A12345678",
-    "contactNumber": "+62812345678",
-    "createdBy": "staff-uuid",
-    "createdAt": "..."
-  }
-}
-```
-
-#### `GET /api/v1/clients`
-
-Get all clients.
-
-#### `GET /api/v1/clients/:id`
-
-Get a single client by ID.
-
-#### `DELETE /api/v1/clients/:id`
-
-Delete a client. **Admin only.**
-
----
-
-### Tickets
-
-> All ticket routes require authentication (STAFF or ADMIN).
-
-#### `POST /api/v1/tickets`
-
-Create a new tracking ticket. Automatically generates a tracking code and adds an initial `RECEIVED` history entry.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Request body:**
-
-```json
-{
-  "clientId": "client-uuid",
-  "serviceType": "VISA Extension"
-}
-```
-
-| Field         | Type   | Required | Description                           |
-| ------------- | ------ | -------- | ------------------------------------- |
-| `clientId`    | string | Yes      | UUID of an existing client            |
-| `serviceType` | string | Yes      | Type of service (free-text)           |
-
-**Response (201):**
-
-```json
-{
-  "success": true,
-  "message": "Ticket created successfully!",
-  "data": {
-    "id": "ticket-uuid",
-    "trackingCode": "GVI-1712345678",
-    "clientId": "client-uuid",
-    "serviceType": "VISA Extension",
-    "currentStatus": "RECEIVED",
-    "handledBy": "staff-uuid",
-    "createdAt": "..."
-  }
-}
-```
-
-> **Tip:** Share the `trackingCode` with the client so they can track their application.
-
-#### `GET /api/v1/tickets`
-
-Get all tickets with client and handler info.
-
-#### `GET /api/v1/tickets/:id`
-
-Get a single ticket with full details (client, handler, documents, and history timeline).
-
-#### `PATCH /api/v1/tickets/:id/status`
-
-Update a ticket's status and add a history entry.
-
-**Request body:**
-
-```json
-{
-  "statusName": "IN_REVIEW",
-  "descriptionPublic": "Document is being reviewed by staff.",
-  "descriptionInternal": "Waiting for passport copy verification."
-}
-```
-
-| Field                  | Type   | Required | Description                            |
-| ---------------------- | ------ | -------- | -------------------------------------- |
-| `statusName`           | string | Yes      | New status (see status flow)           |
-| `descriptionPublic`    | string | Yes      | Public note (visible to clients)       |
-| `descriptionInternal`  | string | No       | Internal note (staff only)             |
-
-**Valid status values:** `RECEIVED`, `IN_REVIEW`, `IN_PROCESS`, `APPROVED`, `REJECTED`, `COMPLETED`
-
-#### `DELETE /api/v1/tickets/:id`
-
-Delete a ticket, all its histories, documents, and associated storage files. **Admin only.**
-
----
-
-### Documents (File Attachments)
-
-Documents are file attachments linked to a ticket. This API uses **Signed URLs** — files go directly from the client to Supabase Storage, never through the API server.
-
-**File restrictions:**
-
-- Maximum size: **2 MB**
-- Allowed types: **JPG**, **PNG**, **PDF**
-
-#### Upload Flow (3 steps)
-
-```
-Step 1: Client → API         : Request a signed upload URL
-Step 2: Client → Supabase    : Upload the file directly using the signed URL
-Step 3: Client → API         : Attach the document to a ticket with the storage path
-```
-
-#### `POST /api/v1/documents/upload-url`
-
-**Step 1:** Get a signed upload URL.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Request body:**
-
-```json
-{
-  "fileName": "passport_scan.pdf",
-  "contentType": "application/pdf",
-  "fileSize": 1048576
-}
-```
-
-| Field         | Type   | Required | Description                                                 |
-| ------------- | ------ | -------- | ----------------------------------------------------------- |
-| `fileName`    | string | Yes      | Name of the file                                            |
-| `contentType` | string | Yes      | MIME type (`image/jpeg`, `image/png`, or `application/pdf`) |
-| `fileSize`    | number | No       | File size in bytes (validated against 2 MB limit)           |
-
-**Response (200):**
-
-```json
-{
-  "success": true,
-  "message": "Signed upload URL generated successfully.",
-  "data": {
-    "signedUrl": "https://...supabase.co/storage/v1/object/upload/sign/...",
-    "storagePath": "documents/uuid/passport_scan.pdf",
-    "token": "eyJ..."
-  }
-}
-```
-
-#### Step 2: Upload the file
-
-Use the `signedUrl` from Step 1 to upload directly to Supabase:
-
-```bash
-curl -X PUT "SIGNED_URL_HERE" \
-  -H "Content-Type: application/pdf" \
-  --data-binary @/path/to/your/file.pdf
-```
-
-Or in JavaScript:
-
-```javascript
-await fetch(signedUrl, {
-  method: 'PUT',
-  headers: { 'Content-Type': file.type },
-  body: file,
-});
-```
-
-#### `POST /api/v1/documents`
-
-**Step 3:** Attach the document to a ticket.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Request body:**
-
-```json
-{
-  "ticketId": "ticket-uuid",
-  "docName": "Passport Scan",
-  "docType": "PASSPORT",
-  "status": "RECEIVED",
-  "isPublic": true,
-  "storagePath": "documents/uuid/passport_scan.pdf"
-}
-```
-
-| Field         | Type    | Required | Description                                |
-| ------------- | ------- | -------- | ------------------------------------------ |
-| `ticketId`    | string  | Yes      | UUID of the ticket to attach the file to   |
-| `docName`     | string  | Yes      | Display name for the document              |
-| `docType`     | string  | Yes      | `VISA`, `KITAS`, or `PASSPORT`             |
-| `status`      | string  | No       | Document status (defaults to `RECEIVED`)   |
-| `isPublic`    | boolean | No       | Show to client on tracking (default false) |
-| `storagePath` | string  | Yes      | The path returned from Step 1              |
-
-**Response (201):**
-
-```json
-{
-  "success": true,
-  "message": "Document added successfully!",
-  "data": {
-    "id": "document-uuid",
-    "ticketId": "ticket-uuid",
-    "docName": "Passport Scan",
-    "docType": "PASSPORT",
-    "status": "RECEIVED",
-    "fileUrl": "documents/uuid/passport_scan.pdf",
-    "isPublic": true,
-    "createdAt": "..."
-  }
-}
-```
-
-#### `GET /api/v1/documents/ticket/:ticketId`
-
-Get all documents for a specific ticket. Returns temporary signed download URLs.
-
-**Response (200):**
-
-```json
-{
-  "success": true,
-  "message": "Documents retrieved successfully.",
-  "data": [
-    {
-      "id": "document-uuid",
-      "docName": "Passport Scan",
-      "docType": "PASSPORT",
-      "status": "RECEIVED",
-      "fileUrl": "documents/uuid/passport_scan.pdf",
-      "fileDownloadUrl": "https://...signed-temporary-url...",
-      "isPublic": true,
-      "createdAt": "..."
-    }
-  ]
-}
-```
-
-> **Note:** `fileDownloadUrl` is a temporary signed URL that expires after 1 hour.
-
-#### `DELETE /api/v1/documents/:id`
-
-Delete a document and its file from storage. **Admin only.**
-
----
-
-### Tracking (Public)
-
-#### `GET /api/v1/tracking/:code`
-
-Track a ticket by its tracking code. **No authentication required** — this is for clients.
-
-Only returns **public** documents (where `isPublic = true`) and strips internal descriptions from the history.
-
-**Example:** `GET /api/v1/tracking/GVI-1712345678`
-
-**Response (200):**
-
-```json
-{
-  "success": true,
-  "message": "Ticket found.",
-  "data": {
-    "id": "ticket-uuid",
-    "trackingCode": "GVI-1712345678",
-    "serviceType": "VISA Extension",
-    "currentStatus": "IN_REVIEW",
-    "client": { "name": "John Doe" },
-    "handler": { "fullName": "Staff Budi" },
-    "documents": [
-      {
-        "id": "doc-uuid",
-        "docName": "Passport Scan",
-        "docType": "PASSPORT",
-        "status": "RECEIVED",
-        "fileDownloadUrl": "https://...signed-temporary-url...",
-        "createdAt": "..."
-      }
-    ],
-    "histories": [
-      {
-        "id": "history-uuid",
-        "statusName": "IN_REVIEW",
-        "descriptionPublic": "Document is being reviewed by staff.",
-        "updatedBy": { "fullName": "Staff Budi" },
-        "createdAt": "..."
-      }
-    ],
-    "createdAt": "..."
-  }
-}
-```
-
-**Errors:**
-
-| Status | Message                                            |
-| ------ | -------------------------------------------------- |
-| 404    | Ticket not found. Please check your tracking code. |
-
-#### `PATCH /api/v1/tracking/:id/status`
-
-Update ticket status via the tracking module. **Requires authentication.**
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Request body:**
-
-```json
-{
-  "statusName": "IN_PROCESS",
-  "descriptionPublic": "Document is being processed.",
-  "descriptionInternal": "Forwarded to immigration office."
-}
-```
-
----
-
-## All Endpoints Summary
-
-| #   | Method   | Endpoint                             | Auth | Role         | Description              |
-| --- | -------- | ------------------------------------ | ---- | ------------ | ------------------------ |
-| 1   | `POST`   | `/api/v1/auth/login`                 | No   | —            | Login                    |
-| 2   | `GET`    | `/api/v1/users/me`                   | Yes  | ADMIN, STAFF | Get my profile           |
-| 3   | `POST`   | `/api/v1/users`                      | Yes  | ADMIN        | Create staff             |
-| 4   | `GET`    | `/api/v1/users`                      | Yes  | ADMIN        | List all users           |
-| 5   | `DELETE` | `/api/v1/users/:id`                  | Yes  | ADMIN        | Delete a user            |
-| 6   | `POST`   | `/api/v1/clients`                    | Yes  | STAFF, ADMIN | Create a client          |
-| 7   | `GET`    | `/api/v1/clients`                    | Yes  | STAFF, ADMIN | List all clients         |
-| 8   | `GET`    | `/api/v1/clients/:id`                | Yes  | STAFF, ADMIN | Get a client             |
-| 9   | `DELETE` | `/api/v1/clients/:id`                | Yes  | ADMIN        | Delete a client          |
-| 10  | `POST`   | `/api/v1/tickets`                    | Yes  | STAFF, ADMIN | Create a ticket          |
-| 11  | `GET`    | `/api/v1/tickets`                    | Yes  | STAFF, ADMIN | List all tickets         |
-| 12  | `GET`    | `/api/v1/tickets/:id`                | Yes  | STAFF, ADMIN | Get ticket details       |
-| 13  | `PATCH`  | `/api/v1/tickets/:id/status`         | Yes  | STAFF, ADMIN | Update ticket status     |
-| 14  | `DELETE` | `/api/v1/tickets/:id`                | Yes  | ADMIN        | Delete a ticket          |
-| 15  | `POST`   | `/api/v1/documents/upload-url`       | Yes  | STAFF, ADMIN | Get signed upload URL    |
-| 16  | `POST`   | `/api/v1/documents`                  | Yes  | STAFF, ADMIN | Attach document          |
-| 17  | `GET`    | `/api/v1/documents/ticket/:ticketId` | Yes  | STAFF, ADMIN | Get documents by ticket  |
-| 18  | `DELETE` | `/api/v1/documents/:id`              | Yes  | ADMIN        | Delete a document        |
-| 19  | `GET`    | `/api/v1/tracking/:code`             | No   | —            | Public ticket tracking   |
-| 20  | `PATCH`  | `/api/v1/tracking/:id/status`        | Yes  | Authenticated| Update status (tracking) |
+Set the same environment variables from the [Installation](#4-set-up-environment-variables) step in the Vercel project settings (`FRONTEND_URL` must point at the deployed frontend origin).
 
 ---
 
@@ -843,18 +367,16 @@ Update ticket status via the tracking module. **Requires authentication.**
 All errors follow the same format:
 
 ```json
-{
-  "success": false,
-  "message": "Description of what went wrong"
-}
+{ "success": false, "message": "Description of what went wrong" }
 ```
 
-| Status Code | Meaning                                                      |
+| Status Code | Meaning                                                       |
 | ----------- | ------------------------------------------------------------ |
 | 400         | Bad request (invalid input, wrong file type, file too large) |
 | 401         | Not authenticated (missing or invalid token)                 |
 | 403         | Forbidden (you don't have permission)                        |
 | 404         | Not found                                                    |
+| 429         | Too many requests (rate limited)                             |
 | 500         | Server error                                                 |
 
 ---

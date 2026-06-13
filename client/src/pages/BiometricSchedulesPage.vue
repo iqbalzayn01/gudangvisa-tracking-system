@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useApplicationStore } from '../stores/application.store';
@@ -116,7 +117,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-5xl">
+  <div class="w-full max-w-640">
     <div class="flex justify-between items-start mb-6 gap-4 flex-wrap">
       <div>
         <h1 class="text-[28px] font-bold text-heading mb-1">
@@ -124,8 +125,9 @@ onMounted(() => {
         </h1>
         <p class="text-sm text-subtle">Manage biometric appointments</p>
       </div>
-      <button
-        class="p-2.5 rounded-full border border-edge text-subtle hover:bg-panel-light transition-colors cursor-pointer"
+      <Button
+        variant="ghost"
+        class="p-2.5 rounded-full border border-edge text-subtle hover:bg-panel-light transition-colors cursor-pointer h-auto"
         :disabled="applicationStore.isLoading"
         title="Refresh"
         @click="applicationStore.fetchAll()"
@@ -146,7 +148,7 @@ onMounted(() => {
             d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
           />
         </svg>
-      </button>
+      </Button>
     </div>
 
     <!-- Summary -->
@@ -252,8 +254,13 @@ onMounted(() => {
               >{{ s.trackingCode }}</code
             >
           </div>
-          <p class="text-xs text-subtle mt-1 flex items-center gap-x-3 flex-wrap">
-            <span>{{ formatDay(s.date) }}{{ s.time ? ` · ${formatTime(s.time)}` : '' }}</span>
+          <p
+            class="text-xs text-subtle mt-1 flex items-center gap-x-3 flex-wrap"
+          >
+            <span
+              >{{ formatDay(s.date)
+              }}{{ s.time ? ` · ${formatTime(s.time)}` : '' }}</span
+            >
             <span v-if="s.location" class="inline-flex items-center gap-1">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -271,7 +278,9 @@ onMounted(() => {
               </svg>
               {{ s.location }}
             </span>
-            <span v-if="s.fieldAssistant">Assistant: {{ s.fieldAssistant }}</span>
+            <span v-if="s.fieldAssistant"
+              >Assistant: {{ s.fieldAssistant }}</span
+            >
           </p>
         </div>
 

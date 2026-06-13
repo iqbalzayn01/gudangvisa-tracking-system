@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getApplicationById, updateApplicationStatus } from '../api/applications.api';
@@ -157,8 +158,8 @@ async function handleDocDelete(id: string): Promise<void> {
 
 <template>
   <div class="max-w-4xl">
-    <button
-      class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors mb-6 cursor-pointer"
+    <Button variant="ghost"
+      class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors mb-6 cursor-pointer h-auto"
       @click="router.push('/applications')"
     >
       <svg
@@ -174,7 +175,7 @@ async function handleDocDelete(id: string): Promise<void> {
         <polyline points="12 19 5 12 12 5" />
       </svg>
       Back to Applications
-    </button>
+    </Button>
 
     <LoadingSpinner v-if="isLoading" />
 
@@ -188,8 +189,8 @@ async function handleDocDelete(id: string): Promise<void> {
                 class="text-lg text-red-400 bg-red-500/10 px-3 py-1 rounded-lg font-mono font-bold"
                 >{{ application.trackingCode }}</code
               >
-              <button
-                class="p-1.5 rounded-md text-subtle hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+              <Button variant="ghost"
+                class="p-1.5 rounded-md text-subtle hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer h-auto"
                 title="Copy Code"
                 @click="
                   copyToClipboard(
@@ -214,7 +215,7 @@ async function handleDocDelete(id: string): Promise<void> {
                     d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
                   ></path>
                 </svg>
-              </button>
+              </Button>
             </div>
             <h1 class="text-xl font-bold text-heading mt-3">
               {{ application.client?.name ?? 'Unknown Client' }}
@@ -248,13 +249,13 @@ async function handleDocDelete(id: string): Promise<void> {
       <div class="bg-panel border border-edge rounded-2xl p-6 mb-6">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-base font-semibold text-heading">Update Status</h2>
-          <button
+          <Button variant="ghost"
             v-if="!showStatusForm && !isCompleted"
-            class="px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
+            class="px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
             @click="showStatusForm = true"
           >
             Update
-          </button>
+          </Button>
         </div>
 
         <!-- Completed notice -->
@@ -307,19 +308,19 @@ async function handleDocDelete(id: string): Promise<void> {
             placeholder="Internal notes (optional, staff only)"
           />
           <div class="flex gap-2 justify-end">
-            <button
-              class="px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
+            <Button variant="ghost"
+              class="px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
               @click="showStatusForm = false"
             >
               Cancel
-            </button>
-            <button
-              class="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer"
+            </Button>
+            <Button variant="ghost"
+              class="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer h-auto"
               :disabled="isUpdating || !descPublic.trim()"
               @click="handleStatusUpdate"
             >
               {{ isUpdating ? 'Updating…' : 'Update' }}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -330,12 +331,12 @@ async function handleDocDelete(id: string): Promise<void> {
           <h2 class="text-base font-semibold text-heading">
             Documents ({{ documents.length }})
           </h2>
-          <button
-            class="px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
+          <Button variant="ghost"
+            class="px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
             @click="showDocForm = !showDocForm"
           >
             {{ showDocForm ? 'Cancel' : 'Upload' }}
-          </button>
+          </Button>
         </div>
 
         <!-- Upload form -->
@@ -383,14 +384,14 @@ async function handleDocDelete(id: string): Promise<void> {
             @select="(f: File) => (selectedFile = f)"
             @clear="selectedFile = null"
           />
-          <button
-            class="w-full px-4 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer"
+          <Button variant="ghost"
+            class="w-full px-4 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer h-auto"
             :disabled="isUploading || !docName.trim() || !selectedFile"
             @click="handleDocUpload"
           >
             <span v-if="isUploading">{{ uploadProgress }}</span>
             <span v-else>Upload Document</span>
-          </button>
+          </Button>
         </div>
 
         <!-- Document list -->
@@ -433,9 +434,9 @@ async function handleDocDelete(id: string): Promise<void> {
               class="text-sm text-red-400 hover:underline mr-2"
               >Download</a
             >
-            <button
+            <Button variant="ghost"
               v-if="auth.isAdmin"
-              class="p-1 rounded text-subtle hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+              class="p-1 rounded text-subtle hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer h-auto rounded-full"
               @click="handleDocDelete(doc.id)"
             >
               <svg
@@ -452,7 +453,7 @@ async function handleDocDelete(id: string): Promise<void> {
                   d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
                 />
               </svg>
-            </button>
+            </Button>
           </div>
         </div>
         <p v-else class="text-sm text-subtle text-center py-4">

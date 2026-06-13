@@ -9,10 +9,10 @@
 | Field             | Detail                                                                                         |
 | ----------------- | ---------------------------------------------------------------------------------------------- |
 | **Nama Proyek**   | Gudang Visa Tracking System                                                                    |
-| **Versi Dokumen** | 1.7.0                                                                                          |
-| **Tanggal**       | 1 June 2026                                                                                    |
+| **Versi Dokumen** | 1.8.0                                                                                          |
+| **Tanggal**       | 13 June 2026                                                                                   |
 | **Penulis**       | Tim Pengembang Gudang Visa                                                                     |
-| **Tech Stack**    | Vue.js · TailwindCSS · ShadCN-Vue · Node.js · Express.js · PostgreSQL · Supabase · Drizzle ORM |
+| **Tech Stack**    | Vue.js · TailwindCSS v4 · ShadCN-Vue / Reka UI · vue-i18n · Node.js · Express.js · PostgreSQL · Supabase · Drizzle ORM |
 
 ---
 
@@ -228,6 +228,9 @@ flowchart LR
 | F-08 | **Document Management**           | Upload/download dokumen persyaratan keimigrasian via Supabase Storage dengan access control.                                            |
 | F-09 | **Scheduling Biometrik Terlebur** | Penjadwalan biometrik yang terintegrasi langsung di dalam tabel `applications` untuk eliminasi overhead query JOIN.                     |
 | F-10 | **Smart Reminder**                | Reminder otomatis untuk dokumen yang mendekati deadline atau stagnant.                                                                  |
+| F-11 | **Public Tracking Landing**       | Halaman publik di `/portal` (tanpa login) sebagai pintu masuk klien untuk melacak dokumen — satu-satunya halaman yang di-_index_ oleh mesin pencari. |
+| F-12 | **Localization (ID/EN)**          | Antarmuka dwibahasa via `vue-i18n`: Bahasa Indonesia (default) & English (fallback), preferensi disimpan per-peramban (`localStorage`). |
+| F-13 | **SEO Terkelola per-Rute**        | Metadata (`title`, `description`, `robots`, canonical, Open Graph) diatur per rute via `utils/seo.ts`. Hanya `/portal` yang `index, follow`; seluruh rute privat `noindex, nofollow`. `robots.txt` & `sitemap.xml` hanya mengekspos `/portal`. |
 
 ### 2.2 Di Luar Cakupan (OUT OF SCOPE)
 
@@ -307,7 +310,7 @@ Sistem memfasilitasi pengunggahan dokumen dengan batasan berikut:
 | Aspek                       | Spesifikasi                                                                       |
 | --------------------------- | --------------------------------------------------------------------------------- |
 | **Format File Didukung**    | PDF, JPG, JPEG, PNG                                                               |
-| **Ukuran Maksimum**         | 10 MB per file                                                                    |
+| **Ukuran Maksimum**         | 2 MB per file (divalidasi di `server/src/utils/storage.ts` & batas bucket Supabase) |
 | **Penyimpanan**             | Supabase Storage (S3-compatible)                                                  |
 | **Validasi Keaslian**       | ❌ **Tidak tersedia** — Tidak melakukan validasi keaslian dokumen secara otomatis |
 | **Pemeriksaan Kelengkapan** | ✅ Checklist kelengkapan per jenis visa (manual oleh staf)                        |
@@ -371,40 +374,49 @@ graph TB
     ROUTES --> SUPABASE_RT
 ```
 
+> [!NOTE]
+> **Status implementasi:** Pembaruan _live_ ke portal klien saat ini menggunakan **interval polling** terhadap REST API (lihat §13.1), bukan WebSocket. Komponen **Supabase Realtime (WebSocket)** pada diagram di atas adalah **roadmap**. Begitu pula isolasi data klien saat ini ditegakkan di **lapisan aplikasi** (lihat §11.2), bukan PostgreSQL RLS.
+
 ### 3.2 Arsitektur Folder Project (Pembaruan Skema)
 
 ```
 gudang-visa-tracking/
-├── client/                          # Frontend Vue.js
+├── client/                          # Frontend Vue.js (Vite + TS)
 │   ├── src/
-│   │   ├── pages/
-│   │   │   ├── auth/
-│   │   │   │   ├── LoginPage.vue       # Login khusus Admin/Staff (Rute /login)
-│   │   │   │   └── ClientLoginPage.vue # Login khusus Client (Rute /portal/login)
-│   │   │   ├── admin/
-│   │   │   ├── staff/
-│   │   │   └── client/
+│   │   ├── api/                     # Instance Axios (staff + portal) & modul API
+│   │   ├── components/
+│   │   │   └── ui/                  # Primitif reka-ui / shadcn-vue (Button, Select)
+│   │   ├── guards/                  # Navigation guard (domain staff + client)
+│   │   ├── i18n/                    # Setup vue-i18n + locales/{id,en}.ts
+│   │   ├── layouts/                 # DashboardLayout, AuthLayout
+│   │   ├── lib/                     # Helper cn() (class-merge)
+│   │   ├── pages/                   # View per-rute (flat): LoginPage, PublicTrackingPage,
+│   │   │                            #   ClientLoginPage, ClientPortalPage, ProfilePage, …
+│   │   ├── stores/                  # Pinia (auth, client-auth, application, client, notification, theme)
+│   │   ├── styles/                  # globals.css (Tailwind v4 + design tokens)
+│   │   └── utils/                   # formatters, clipboard, seo.ts
 │   └── package.json
 │
-├── server/                          # Backend Express.js
+├── server/                          # Backend Express.js (TS)
 │   ├── src/
+│   │   ├── app.ts                   # Setup Express + middleware (helmet, cors, rate-limit)
+│   │   ├── server.ts                # Entry lokal
+│   │   ├── api/index.ts             # Entry serverless Vercel
 │   │   ├── db/
-│   │   │   ├── schema/
-│   │   │   │   ├── staff_accounts.ts  # Tabel Akun Internal (Admin/Staff)
-│   │   │   │   ├── client_accounts.ts # Tabel Akun Pelanggan (Client Only)
-│   │   │   │   ├── applications.ts    # Relasi ke client_accounts & staff_accounts (Checklist & Biometrik terlebur)
-│   │   │   │   ├── documents.ts       # Menggunakan Enum document_type
-│   │   │   │   ├── tracking.ts
-│   │   │   │   ├── notifications.ts
-│   │   │   │   └── audit-logs.ts
-│   │   ├── routes/
-│   │   │   ├── auth-internal.routes.ts
-│   │   │   ├── auth-client.routes.ts
-│   │   │   └── application.routes.ts
-│   │   ├── services/
-│   │   │   ├── auth-internal.service.ts
-│   │   │   ├── auth-client.service.ts
-│   │   │   └── application.service.ts
+│   │   │   ├── index.ts             # Koneksi database
+│   │   │   └── schema.ts            # Definisi 7 tabel + enum + relations (single file)
+│   │   ├── middlewares/             # auth, role, validate, error
+│   │   ├── modules/                 # Per-fitur: controller · service · repository · routes · validation
+│   │   │   ├── auth-internal/       # Login/refresh/logout staf
+│   │   │   ├── auth-client/         # Login/refresh/logout klien
+│   │   │   ├── staff-accounts/
+│   │   │   ├── client-accounts/
+│   │   │   ├── applications/        # Status, biometrik, checklist + view klien
+│   │   │   ├── application-documents/
+│   │   │   ├── audit-logs/
+│   │   │   └── notifications/
+│   │   ├── scripts/seed.ts          # Seeder idempotent (admin + 100 klien demo)
+│   │   └── utils/                   # AppError, audit, jwt, storage
 │   └── package.json
 ```
 
@@ -1037,29 +1049,37 @@ sequenceDiagram
 
 Untuk meminimalisir risiko kebocoran hak akses escalations (_Privilege Escalation Attacks_), arsitektur tidak menggunakan trik kolom fungsional tunggal role dalam satu tabel. Data akun klien eksternal disimpan di tabel `client_accounts`, sedangkan data administrator dan staf disimpan di tabel `staff_accounts`. Kebocoran pada token salah satu tabel tidak dapat digunakan untuk membobol sistem di tabel lainnya.
 
-### 11.2 Pembaruan Row Level Security (RLS) PostgreSQL
+### 11.2 Isolasi Data Klien (Application-Layer Enforcement)
 
-Row Level Security diaktifkan pada Supabase PostgreSQL untuk menjamin isolasi data mutlak klien:
+Pada implementasi saat ini, isolasi data klien **ditegakkan di lapisan aplikasi (backend)**, bukan melalui PostgreSQL Row Level Security. Backend Express terhubung ke database menggunakan **Supabase service-role key** dan kueri dijalankan melalui Drizzle ORM, sehingga setiap akses data klien wajib melewati dua lapis kontrol:
 
-```sql
--- Mengamankan tabel applications agar klien hanya melihat miliknya sendiri
-ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+1. **Autentikasi terpisah** — middleware `requireClientAuth` memverifikasi JWT klien (`accountType: 'client'`) dan mengisi `req.clientUser`. Token staf tidak akan pernah lolos sebagai token klien (dan sebaliknya).
+2. **Kueri ber-_scope_ kepemilikan** — endpoint klien selalu memfilter berdasarkan identitas yang login, mis. `GET /api/applications/client/my-applications` menjalankan `WHERE client_id = <clientUser.id>`, dan unduhan dokumen memverifikasi rantai kepemilikan (dokumen → aplikasi → `client_id`) sebelum mengeluarkan _signed URL_.
 
-CREATE POLICY "Clients can only read their own applications"
-ON applications
-FOR SELECT
-USING (clientId = auth.uid()); -- auth.uid() terhubung ke client_accounts.id
+Dengan demikian klien secara struktural tidak dapat membaca data milik klien lain, walaupun RLS database belum diaktifkan.
 
-CREATE POLICY "Staff can do all actions on applications"
-ON applications
-FOR ALL
-USING (
-  EXISTS (
-    SELECT 1 FROM staff_accounts
-    WHERE staff_accounts.id = auth.uid() -- auth.uid() terhubung ke staff_accounts.id
-  )
-);
-```
+> [!NOTE]
+> **Roadmap — Defense in depth (PostgreSQL RLS):** Sebagai lapisan pertahanan tambahan di masa depan, RLS dapat diaktifkan langsung di Supabase agar isolasi juga ditegakkan di level basis data (bukan hanya aplikasi). Rancangan kebijakannya:
+>
+> ```sql
+> -- (ROADMAP) Mengamankan tabel applications agar klien hanya melihat miliknya sendiri
+> ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+>
+> CREATE POLICY "Clients can only read their own applications"
+> ON applications
+> FOR SELECT
+> USING (client_id = auth.uid()); -- auth.uid() terhubung ke client_accounts.id
+>
+> CREATE POLICY "Staff can do all actions on applications"
+> ON applications
+> FOR ALL
+> USING (
+>   EXISTS (
+>     SELECT 1 FROM staff_accounts
+>     WHERE staff_accounts.id = auth.uid() -- auth.uid() terhubung ke staff_accounts.id
+>   )
+> );
+> ```
 
 ### 11.3 Strategi Optimasi Keamanan Token (XSS-Safe Token Architecture)
 
@@ -1105,7 +1125,7 @@ sequenceDiagram
 2. **Refresh Token (Long-Lived, HttpOnly Cookie)**:
    - **Masa Aktif**: 7 Hari.
    - **Lokasi Penyimpanan**: Disimpan di dalam **HttpOnly, Secure, & SameSite=Strict Cookie** bernama `gv_refresh_token` di peramban.
-   - **Keamanan**: JavaScript diblokir total oleh peramban untuk membaca atau memodifikasi cookie ini (`httpOnly: true`). Cookie otomatis dilampirkan oleh peramban hanya pada kueri ke rute tertentu (`path: '/api/auth/refresh'`).
+   - **Keamanan**: JavaScript diblokir total oleh peramban untuk membaca atau memodifikasi cookie ini (`httpOnly: true`). Cookie otomatis dilampirkan oleh peramban hanya pada kueri ke rute API (`path: '/api'`).
 
 #### B. Implementasi Langkah 1: Backend Update (Express.js Cookies)
 
@@ -1126,7 +1146,7 @@ export const sendTokens = (
     secure: process.env.NODE_ENV === 'production', // Hanya terkirim lewat HTTPS di produksi
     sameSite: 'strict', // Proteksi mutlak CSRF
     maxAge: 7 * 24 * 60 * 60 * 1000, // Kadaluarsa dalam 7 Hari
-    path: '/api/auth/refresh', // Hanya dikirim saat memicu silent refresh
+    path: '/api', // Dikirim ke seluruh rute API (mis. saat silent refresh)
   });
 
   // Access Token dikembalikan via JSON Body untuk disimpan di memory Pinia
@@ -1157,14 +1177,14 @@ app.use(
 
 #### D. Implementasi Langkah 3: Konfigurasi Axios Frontend (`withCredentials`)
 
-Pada aplikasi frontend Vue, pustaka Axios dikonfigurasi secara global agar peramban selalu menyertakan HttpOnly cookie pada setiap _request_ asinkron lintas-asal secara otomatis:
+Pada aplikasi frontend Vue, terdapat **dua instance Axios terpisah** — `client/src/api/client.ts` (sesi staf) dan `client/src/api/portal.client.ts` (sesi klien) — masing-masing dikonfigurasi agar peramban selalu menyertakan HttpOnly cookie pada setiap _request_ asinkron lintas-asal secara otomatis:
 
 ```typescript
-// client/src/lib/axios.ts
+// client/src/api/client.ts (instance staf; portal.client.ts serupa untuk klien)
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: import.meta.env.VITE_BASE_URL || 'http://localhost:8000/api',
   withCredentials: true, // Wajib diaktifkan untuk melampirkan cookie refresh token
 });
 
@@ -1274,10 +1294,12 @@ api.interceptors.response.use(
 
 ### 13.1 Frontend (Vue 3 Client)
 
-- **Core Framework**: Vue 3 (Composition API) & TypeScript
+- **Core Framework**: Vue 3 (Composition API) & TypeScript, di-_build_ dengan Vite
 - **State Management**: Pinia (Auth & System state caching)
 - **Router**: Vue Router (dengan Navigation Guard terpisah untuk rute internal & rute klien)
-- **Styling & Components**: TailwindCSS, Radix Vue, & ShadCN-Vue (Premium UI)
+- **Styling & Components**: TailwindCSS v4, **Reka UI** (primitif _headless_, penerus Radix Vue), & ShadCN-Vue (Premium UI)
+- **Internationalization**: `vue-i18n` — Bahasa Indonesia (default) & English (fallback), preferensi disimpan di `localStorage` dan `<html lang>` disinkronkan
+- **SEO**: Metadata per-rute (`utils/seo.ts`) — hanya `/portal` yang `index, follow`, seluruh rute privat `noindex, nofollow`; `robots.txt` & `sitemap.xml` hanya mengekspos `/portal`
 - **HTTP Client**: Axios (instance terpisah untuk sesi internal & sesi klien, masing-masing dengan Interceptor _silent refresh_ ke endpoint refresh-nya sendiri)
 - **Realtime / Live Updates**: Pembaruan _live_ pada Portal Klien & halaman tracking publik diimplementasikan saat ini melalui **interval polling** (~10 detik) terhadap REST API — otomatis berhenti saat tab tersembunyi (`visibilitychange`) dan dibersihkan saat _unmount_ untuk mencegah _memory leak_. Migrasi ke **Supabase Realtime (WebSocket)** disiapkan sebagai _roadmap_ tanpa mengubah lapisan UI.
 
@@ -1286,7 +1308,7 @@ api.interceptors.response.use(
 - **Core Runtime**: Node.js LTS (v20+) & Express.js dengan TypeScript
 - **ORM**: Drizzle ORM (Type-Safe queries) & Drizzle Kit (Database migrations)
 - **Validasi Skema**: Zod (Validator payload JSON request & input form)
-- **Enkripsi & Token**: `bcryptjs` (Hashing password) & `jsonwebtoken` (JWT creation)
+- **Enkripsi & Token**: `bcryptjs` (Hashing password) & `jose` (JWT signing/verification)
 - **Keamanan Web**: Helmet.js (Menuliskan headers keamanan HTTP), CORS (kebijakan asal rute domain), & `express-rate-limit` (pencegahan serangan brute-force API).
 
 ---
@@ -1318,6 +1340,8 @@ gantt
 
 ### 15.1 Standar Foto Keimigrasian Gudang Visa
 
+> Standar foto berikut adalah pedoman keimigrasian khusus (lebih ketat) dan berada di dalam batas unggah sistem **2 MB** (§2.3.6).
+
 - Ukuran berkas maksimum: **200 kb**.
 - Komposisi wajah: **50% - 60%** dari luas bingkai foto.
 - Latar belakang foto: Berwarna kontras polos sesuai tipe visa.
@@ -1327,5 +1351,6 @@ gantt
 
 | Versi | Tanggal     | Ringkasan Perubahan                                                                                                                                                                                                                                                                                                                          |
 | ----- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.8.0 | 13 Jun 2026 | • **Public Tracking Landing** publik di `/portal` (tanpa login) sebagai pintu masuk klien; rute klien terotentikasi dipindah ke `/portal/applications`.<br/>• **Lokalisasi (ID/EN)** via `vue-i18n` & **SEO** terkelola per-rute (hanya `/portal` indexable, rute privat `noindex`; `robots.txt` + `sitemap.xml`).<br/>• Migrasi UI ke **Reka UI + ShadCN-Vue** & **TailwindCSS v4**.<br/>• Penyelarasan dokumen ↔ kode: isolasi klien sebagai _application-layer enforcement_ (RLS jadi roadmap), JWT via `jose`, batas unggah **2 MB**, struktur backend modular (`modules/<feature>/` + `schema.ts` tunggal). |
 | 1.7.0 | 1 Jun 2026  | • Audit trail diaktifkan penuh di seluruh modul (kolom Timestamp, User, Action, Entity, IP Address; filter _action_ & _entity_).<br/>• Portal Klien _self-service_: login klien terpisah (`/portal/login` → `/portal`), unduh dokumen selesai via _signed URL_ dengan verifikasi kepemilikan.<br/>• Halaman manajemen klien dihapus dari dashboard internal; 100 akun klien demo di-_seed_ secara idempotent (`client123`).<br/>• Pembaruan status _live_ via interval polling (tanpa refresh manual) dengan pembersihan listener/timer untuk mencegah _memory leak_. |
 | 1.6.1 | 1 Jun 2026  | Skema 7-tabel teroptimasi (biometrik & checklist terlebur), autentikasi dual-table, RLS, dan arsitektur token XSS-safe.                                                                                                                                                                                                                       |

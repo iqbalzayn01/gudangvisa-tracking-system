@@ -12,9 +12,8 @@ export const validate = (schema: ZodSchema) => {
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const zodError = error as any;
-        const messages = zodError.errors.map(
-          (e: any) => `${e.path.join('.')}: ${e.message}`,
+        const messages = error.issues.map(
+          (issue) => `${issue.path.join('.')}: ${issue.message}`,
         );
 
         _res.status(400).json({

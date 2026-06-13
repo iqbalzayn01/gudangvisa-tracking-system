@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useClientStore } from '../stores/client.store';
 import { useAuthStore } from '../stores/auth.store';
@@ -70,7 +71,9 @@ async function saveEdit(): Promise<void> {
     notify.success('Client updated successfully.');
     closeEdit();
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to update client');
+    notify.error(
+      err instanceof Error ? err.message : 'Failed to update client',
+    );
   } finally {
     isSaving.value = false;
   }
@@ -86,15 +89,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="max-w-6xl">
+  <div class="w-full max-w-640">
     <!-- Header -->
     <div class="flex justify-between items-start mb-6 gap-4 flex-wrap">
       <div>
         <h1 class="text-[28px] font-bold text-heading mb-1">Clients</h1>
         <p class="text-sm text-subtle">
-          {{ auth.isAdmin
-            ? 'View clients and edit their name, nationality, and phone.'
-            : 'View-only directory of registered clients.' }}
+          {{
+            auth.isAdmin
+              ? 'View clients and edit their name, nationality, and phone.'
+              : 'View-only directory of registered clients.'
+          }}
         </p>
       </div>
       <span
@@ -204,8 +209,9 @@ onUnmounted(() => {
                 {{ formatDate(c.createdAt) }}
               </td>
               <td v-if="auth.isAdmin" class="px-4 py-3 text-right">
-                <button
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg border border-edge text-body hover:bg-panel-light hover:text-heading transition-colors cursor-pointer"
+                <Button
+                  variant="ghost"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-lg border border-edge text-body hover:bg-panel-light hover:text-heading transition-colors cursor-pointer h-auto"
                   @click="openEdit(c)"
                 >
                   <svg
@@ -219,11 +225,15 @@ onUnmounted(() => {
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   >
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    <path
+                      d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                    />
+                    <path
+                      d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                    />
                   </svg>
                   Edit
-                </button>
+                </Button>
               </td>
             </tr>
           </tbody>
@@ -260,7 +270,9 @@ onUnmounted(() => {
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[12px] font-semibold text-subtle">Passport</label>
+              <label class="text-[12px] font-semibold text-subtle"
+                >Passport</label
+              >
               <input
                 :value="editTarget.passportNumber ?? '—'"
                 disabled
@@ -270,7 +282,9 @@ onUnmounted(() => {
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label class="text-[13px] font-semibold text-heading" for="edit-name"
+            <label
+              class="text-[13px] font-semibold text-heading"
+              for="edit-name"
               >Name</label
             >
             <input
@@ -298,7 +312,9 @@ onUnmounted(() => {
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label class="text-[13px] font-semibold text-heading" for="edit-phone"
+            <label
+              class="text-[13px] font-semibold text-heading"
+              for="edit-phone"
               >Phone</label
             >
             <input
@@ -310,16 +326,18 @@ onUnmounted(() => {
           </div>
 
           <div class="flex gap-3 justify-end mt-2">
-            <button
+            <Button
+              variant="ghost"
               type="button"
-              class="px-4 py-2 text-sm font-medium rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
+              class="px-4 py-2 text-sm font-medium rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
               @click="closeEdit"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               type="submit"
-              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer h-auto"
               :disabled="isSaving"
             >
               <span
@@ -327,7 +345,7 @@ onUnmounted(() => {
                 class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
               />
               {{ isSaving ? 'Saving…' : 'Save changes' }}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

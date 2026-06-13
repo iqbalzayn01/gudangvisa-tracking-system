@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotificationStore } from '../stores/notification.store';
 
 const router = useRouter();
-const route = useRoute();
 const auth = useAuthStore();
 const notify = useNotificationStore();
 
@@ -21,8 +22,7 @@ async function handleSubmit(): Promise<void> {
   try {
     await auth.login({ email: email.value, password: password.value });
     notify.success('Welcome back!');
-    const redirect = (route.query.redirect as string) || '/dashboard';
-    router.push(redirect);
+    router.push('/dashboard');
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Login failed';
   } finally {
@@ -34,29 +34,22 @@ async function handleSubmit(): Promise<void> {
 <template>
   <div class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-sm">
+      <Button
+        variant="ghost"
+        class="inline-flex items-center gap-1.5 mb-6 -ml-2 px-3 py-2 text-sm font-medium text-subtle hover:text-heading h-auto rounded-full"
+        @click="router.push('/portal')"
+      >
+        <ArrowLeft :size="16" />
+        Back
+      </Button>
       <div class="text-center mb-8">
-        <div
-          class="w-14 h-14 rounded-2xl bg-red-500/12 text-red-400 flex items-center justify-center mx-auto mb-5"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-            />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
-        </div>
+        <img
+          src="/design/logo-square.png"
+          alt="GudangVisa"
+          width="56"
+          height="56"
+          class="w-14 h-14 rounded-2xl mx-auto mb-5"
+        />
         <h1 class="text-[28px] font-bold text-heading mb-2">Welcome back</h1>
         <p class="text-[15px] text-subtle">
           Sign in to access the document tracking dashboard
@@ -120,9 +113,9 @@ async function handleSubmit(): Promise<void> {
           />
         </div>
 
-        <button
+        <Button variant="ghost"
           type="submit"
-          class="w-full flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          class="w-full flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer h-auto"
           :disabled="isSubmitting"
         >
           <span
@@ -130,7 +123,7 @@ async function handleSubmit(): Promise<void> {
             class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
           />
           {{ isSubmitting ? 'Signing in…' : 'Sign in' }}
-        </button>
+        </Button>
       </form>
     </div>
   </div>

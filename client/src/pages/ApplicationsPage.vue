@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { deleteApplication } from '../api/applications.api';
@@ -64,7 +65,9 @@ const filteredApplications = computed(() => {
   if (filterStatus.value)
     list = list.filter((a) => a.currentStatus === filterStatus.value);
   if (filterPriority.value)
-    list = list.filter((a) => (a.priority ?? 'MEDIUM') === filterPriority.value);
+    list = list.filter(
+      (a) => (a.priority ?? 'MEDIUM') === filterPriority.value,
+    );
   const q = searchQuery.value.trim().toLowerCase();
   if (q) {
     list = list.filter(
@@ -152,7 +155,7 @@ async function handleDelete(): Promise<void> {
 </script>
 
 <template>
-  <div class="max-w-6xl">
+  <div class="w-full max-w-640">
     <div class="flex justify-between items-start mb-6 gap-4 flex-wrap">
       <div>
         <h1 class="text-[28px] font-bold text-heading mb-1">Applications</h1>
@@ -164,8 +167,9 @@ async function handleDelete(): Promise<void> {
         </p>
       </div>
       <div class="flex gap-2 items-center">
-        <button
-          class="p-2.5 rounded-full border border-edge text-subtle hover:bg-panel-light transition-colors cursor-pointer"
+        <Button
+          variant="ghost"
+          class="p-2.5 rounded-full border border-edge text-subtle hover:bg-panel-light transition-colors cursor-pointer h-auto"
           :disabled="applicationStore.isLoading"
           title="Refresh"
           @click="applicationStore.fetchAll()"
@@ -186,9 +190,10 @@ async function handleDelete(): Promise<void> {
               d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
             />
           </svg>
-        </button>
-        <button
-          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer"
+        </Button>
+        <Button
+          variant="ghost"
+          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer h-auto"
           @click="router.push('/applications/create')"
         >
           <svg
@@ -204,7 +209,7 @@ async function handleDelete(): Promise<void> {
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           New Application
-        </button>
+        </Button>
       </div>
     </div>
 
@@ -214,12 +219,13 @@ async function handleDelete(): Promise<void> {
       class="flex items-center gap-2.5 px-4 py-3 rounded-full bg-red-500/10 border border-red-500/20 text-sm text-red-400 mb-4"
     >
       {{ applicationStore.error }}
-      <button
-        class="ml-auto px-3 py-1 text-[13px] rounded-full border border-edge text-body hover:bg-panel-light cursor-pointer"
+      <Button
+        variant="ghost"
+        class="ml-auto px-3 py-1 text-[13px] rounded-full border border-edge text-body hover:bg-panel-light cursor-pointer h-auto"
         @click="applicationStore.fetchAll()"
       >
         Retry
-      </button>
+      </Button>
     </div>
 
     <!-- ── Search & Filter Bar ──────────────────────────────────────────── -->
@@ -254,9 +260,10 @@ async function handleDelete(): Promise<void> {
           class="absolute right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-panel-light border border-edge text-subtle pointer-events-none whitespace-nowrap"
           >Ctrl K</kbd
         >
-        <button
+        <Button
+          variant="ghost"
           v-else
-          class="absolute right-2 p-1 rounded-full bg-panel-light text-subtle hover:text-heading hover:bg-edge transition-colors cursor-pointer"
+          class="absolute right-2 p-1 rounded-full bg-panel-light text-subtle hover:text-heading hover:bg-edge transition-colors cursor-pointer h-auto"
           title="Clear search"
           @click="
             searchInput = '';
@@ -277,7 +284,7 @@ async function handleDelete(): Promise<void> {
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-        </button>
+        </Button>
       </div>
       <FilterSelect
         v-model="filterStatus"
@@ -307,27 +314,29 @@ async function handleDelete(): Promise<void> {
             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-panel border border-edge text-xs font-medium text-body"
           >
             "{{ searchQuery.trim() }}"
-            <button
-              class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer"
+            <Button
+              variant="ghost"
+              class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer h-auto rounded-full"
               @click="
                 searchInput = '';
                 searchQuery = '';
               "
             >
               ×
-            </button>
+            </Button>
           </span>
           <span
             v-if="filterStatus !== ''"
             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-panel border border-edge text-xs font-medium text-body"
           >
             {{ filterStatus.replace(/_/g, ' ') }}
-            <button
-              class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer"
+            <Button
+              variant="ghost"
+              class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer h-auto rounded-full"
               @click="filterStatus = ''"
             >
               ×
-            </button>
+            </Button>
           </span>
           <span
             v-if="filterPriority !== ''"
@@ -336,12 +345,13 @@ async function handleDelete(): Promise<void> {
             {{
               filterPriority.charAt(0) + filterPriority.slice(1).toLowerCase()
             }}
-            <button
-              class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer"
+            <Button
+              variant="ghost"
+              class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer h-auto rounded-full"
               @click="filterPriority = ''"
             >
               ×
-            </button>
+            </Button>
           </span>
         </div>
         <div class="flex items-center gap-3 whitespace-nowrap">
@@ -351,12 +361,13 @@ async function handleDelete(): Promise<void> {
               >of {{ applicationStore.totalCount }}</span
             ></span
           >
-          <button
-            class="text-xs text-subtle underline underline-offset-2 hover:text-heading transition-colors cursor-pointer"
+          <Button
+            variant="ghost"
+            class="text-xs text-subtle underline underline-offset-2 hover:text-heading transition-colors cursor-pointer h-auto rounded-full"
             @click="clearAllFilters"
           >
             Clear all
-          </button>
+          </Button>
         </div>
       </div>
     </Transition>
@@ -424,8 +435,9 @@ async function handleDelete(): Promise<void> {
                     class="text-[13px] text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full font-mono whitespace-nowrap"
                     v-html="highlight(a.trackingCode)"
                   ></code>
-                  <button
-                    class="p-1 rounded-full text-subtle hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
+                  <Button
+                    variant="ghost"
+                    class="p-1 rounded-full text-subtle hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0 h-auto"
                     title="Copy reference"
                     @click.stop="
                       copyToClipboard(
@@ -450,7 +462,7 @@ async function handleDelete(): Promise<void> {
                         d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
                       />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               </td>
               <td
@@ -490,9 +502,10 @@ async function handleDelete(): Promise<void> {
                 {{ formatDate(a.createdAt) }}
               </td>
               <td class="px-4 py-3 border-b border-edge">
-                <button
+                <Button
+                  variant="ghost"
                   v-if="auth.isAdmin"
-                  class="p-1.5 rounded-full text-subtle hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                  class="p-1.5 rounded-full text-subtle hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer h-auto"
                   title="Delete"
                   @click.stop="deleteTargetId = a.id"
                 >
@@ -510,7 +523,7 @@ async function handleDelete(): Promise<void> {
                       d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
                     />
                   </svg>
-                </button>
+                </Button>
               </td>
             </tr>
           </tbody>
@@ -536,13 +549,14 @@ async function handleDelete(): Promise<void> {
             : 'Try adjusting your search or filters.'
         }}
       </p>
-      <button
+      <Button
+        variant="ghost"
         v-if="applicationStore.totalCount === 0"
-        class="px-5 py-2.5 text-sm font-semibold rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer"
+        class="px-5 py-2.5 text-sm font-semibold rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer h-auto"
         @click="router.push('/applications/create')"
       >
         Create First Application
-      </button>
+      </Button>
     </div>
 
     <ConfirmDialog

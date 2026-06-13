@@ -17,16 +17,19 @@ export const authGuard: NavigationGuardWithThis<undefined> = (
 ) => {
   // ── Client portal domain ──────────────────────────────────────────────
   if (to.meta.portal === true || to.path.startsWith('/portal')) {
+    // The portal landing (`/portal`) is a fully public page.
+    if (to.meta.public === true) return next();
+
     const clientAuth = useClientAuthStore();
 
     if (to.path === '/portal/login') {
       // Already signed in → skip the login screen.
-      if (clientAuth.isAuthenticated) return next('/portal');
+      if (clientAuth.isAuthenticated) return next('/portal/applications');
       return next();
     }
 
     if (!clientAuth.isAuthenticated) {
-      return next({ path: '/portal/login', query: { redirect: to.fullPath } });
+      return next({ path: '/portal/login' });
     }
     return next();
   }
@@ -45,7 +48,7 @@ export const authGuard: NavigationGuardWithThis<undefined> = (
   }
 
   if (!auth.isAuthenticated) {
-    return next({ path: '/login', query: { redirect: to.fullPath } });
+    return next({ path: '/login' });
   }
 
   if (requiresAdmin && !auth.isAdmin) {

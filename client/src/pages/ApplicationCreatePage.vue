@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import ClientCombobox from '@/components/ClientCombobox.vue';
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createApplication } from '../api/applications.api';
@@ -56,8 +58,8 @@ function handleReset(): void {
 <template>
   <div class="max-w-lg">
     <div class="mb-8">
-      <button
-        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors mb-3 cursor-pointer"
+      <Button variant="ghost"
+        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors mb-3 cursor-pointer h-auto"
         @click="router.push('/applications')"
       >
         <svg
@@ -73,7 +75,7 @@ function handleReset(): void {
           <polyline points="12 19 5 12 12 5" />
         </svg>
         Back
-      </button>
+      </Button>
       <h1 class="text-[28px] font-bold text-heading">New Application</h1>
       <p class="text-sm text-subtle mt-1">
         Register a new immigration document application for a client.
@@ -90,32 +92,7 @@ function handleReset(): void {
         <label class="text-[13px] font-semibold text-heading" for="tc-client"
           >Client *</label
         >
-        <select
-          id="tc-client"
-          v-model="clientId"
-          class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none cursor-pointer appearance-none focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
-          required
-        >
-          <option value="" disabled>Select a client</option>
-          <option
-            v-for="c in clientStore.sortedClients"
-            :key="c.id"
-            :value="c.id"
-          >
-            {{ c.name }} {{ c.passportNumber ? `(${c.passportNumber})` : '' }}
-          </option>
-        </select>
-        <p
-          v-if="
-            clientStore.sortedClients.length === 0 && clientStore.hasFetched
-          "
-          class="text-xs text-amber-400"
-        >
-          No clients found.
-          <router-link to="/clients" class="underline"
-            >Create one first</router-link
-          >.
-        </p>
+        <ClientCombobox id="tc-client" v-model="clientId" />
       </div>
 
       <!-- <div class="flex flex-col gap-1.5">
@@ -172,9 +149,9 @@ function handleReset(): void {
         </p>
       </div>
 
-      <button
+      <Button variant="ghost"
         type="submit"
-        class="w-full flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer"
+        class="w-full flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer h-auto"
         :disabled="isSubmitting || !clientId || !serviceType.trim()"
       >
         <span
@@ -182,7 +159,7 @@ function handleReset(): void {
           class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
         />
         {{ isSubmitting ? 'Creating…' : 'Create Application' }}
-      </button>
+      </Button>
     </form>
 
     <!-- Success -->
@@ -224,18 +201,18 @@ function handleReset(): void {
         </div>
       </div>
       <div class="flex justify-center gap-3">
-        <button
-          class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer"
+        <Button variant="ghost"
+          class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
           @click="handleReset"
         >
           Create Another
-        </button>
-        <button
-          class="px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer"
+        </Button>
+        <Button variant="ghost"
+          class="px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer h-auto"
           @click="router.push(`/applications/${created.id}`)"
         >
           View Application
-        </button>
+        </Button>
       </div>
     </div>
   </div>
