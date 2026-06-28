@@ -10,6 +10,8 @@ export default defineConfig({
   out: './drizzle', // Your migrations folder
   dialect: 'postgresql',
   dbCredentials: {
-    url: ENV.DATABASE_URL,
+    // Run migrations through the Supabase session pooler (5432); the
+    // transaction pooler (6543) used at runtime hangs drizzle-kit migrate.
+    url: ENV.DIRECT_URL ?? ENV.DATABASE_URL,
   },
 });

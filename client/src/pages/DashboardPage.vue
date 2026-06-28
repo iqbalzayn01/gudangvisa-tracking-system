@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Plus,
@@ -9,23 +9,46 @@ import {
   Fingerprint,
   CalendarClock,
   ArrowRight,
+  FileWarning,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth.store';
 import { useApplicationStore } from '../stores/application.store';
 import { useClientStore } from '../stores/client.store';
 import StatusBadge from '../components/StatusBadge.vue';
 import PriorityBadge from '../components/PriorityBadge.vue';
-import type { DocStatus } from '../types';
-import { formatDate } from '../utils/formatters';
+import type { ExpiringDocument } from '../types';
+import { formatDate, expiryState, expiryClasses, daysUntil } from '../utils/formatters';
+import {
+  STATUS_PHASES,
+  documentTypeLabel,
+  visaTypeLabel,
+} from '../utils/labels';
+import { getExpiringDocuments } from '../api/documents.api';
 
 const router = useRouter();
 const auth = useAuthStore();
 const applicationStore = useApplicationStore();
 const clientStore = useClientStore();
 
+// Documents expiring within the next 60 days (or already expired).
+const expiringDocs = ref<ExpiringDocument[]>([]);
+const expiringLoading = ref(false);
+
+async function loadExpiring(): Promise<void> {
+  expiringLoading.value = true;
+  try {
+    expiringDocs.value = await getExpiringDocuments(60);
+  } catch {
+    expiringDocs.value = [];
+  } finally {
+    expiringLoading.value = false;
+  }
+}
+
 onMounted(() => {
   if (!applicationStore.hasFetched) applicationStore.fetchAll();
   if (!clientStore.hasFetched) clientStore.fetchAll();
+  loadExpiring();
 });
 
 // ── Metrics ──────────────────────────────────────────────────────────────────
@@ -90,31 +113,15 @@ const upcomingAppointments = computed(() =>
     .slice(0, 4),
 );
 
-const statusList: DocStatus[] = [
-  'RECEIVED',
-  'IN_REVIEW',
-  'IN_PROCESS',
-  'APPROVED',
-  'COMPLETED',
-  'REJECTED',
-];
-
-const statusBarColor: Record<DocStatus, string> = {
-  RECEIVED: 'bg-slate-500',
-  IN_REVIEW: 'bg-amber-500',
-  IN_PROCESS: 'bg-red-500',
-  APPROVED: 'bg-emerald-500',
-  COMPLETED: 'bg-emerald-400',
-  REJECTED: 'bg-rose-500',
-};
-
+// Distribution by KITAS lifecycle phase (groups the 16 granular stages).
 const statusDistribution = computed(() => {
   const total = applicationStore.totalCount || 1;
-  return statusList.map((s) => {
-    const count = applicationStore.countByStatus[s] ?? 0;
+  return STATUS_PHASES.map((phase) => {
+    const count = applicationStore.countByPhase[phase.key] ?? 0;
     return {
-      status: s,
-      label: s.replace(/_/g, ' '),
+      key: phase.key,
+      label: phase.label,
+      color: phase.color,
       count,
       pct: Math.round((count / total) * 100),
     };
@@ -284,7 +291,7 @@ const statusDistribution = computed(() => {
                 a.client?.name ?? '—'
               }}</span>
               <PriorityBadge
-                :priority="a.priority ?? 'MEDIUM'"
+                :priority="a.priority ?? 'medium'"
                 class="max-sm:hidden"
               />
               <StatusBadge :status="a.currentStatus" />
@@ -310,19 +317,16 @@ const statusDistribution = computed(() => {
           <div class="flex flex-col justify-center gap-3 flex-1">
             <div
               v-for="d in statusDistribution"
-              :key="d.status"
+              :key="d.key"
               class="flex items-center gap-3"
             >
-              <span
-                class="text-xs text-body w-24 shrink-0 capitalize lowercase first-letter:uppercase"
-                >{{ d.label.toLowerCase() }}</span
-              >
+              <span class="text-xs text-body w-28 shrink-0">{{ d.label }}</span>
               <div
                 class="flex-1 h-2.5 rounded-full bg-panel-light overflow-hidden"
               >
                 <div
                   class="h-full rounded-full transition-all duration-500"
-                  :class="statusBarColor[d.status]"
+                  :class="d.color"
                   :style="{ width: `${d.pct}%` }"
                 ></div>
               </div>
@@ -450,18 +454,102 @@ const statusDistribution = computed(() => {
       </div>
     </section>
 
-    <!-- ── Document Processing Flow ─────────────────────────────────────── -->
+    <!-- ── Expiring Documents (compliance monitoring) ───────────────────── -->
+    <section class="mt-4">
+      <div class="bg-panel border border-edge rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2.5">
+            <div
+              class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0"
+            >
+              <FileWarning :size="18" />
+            </div>
+            <div>
+              <h2 class="text-base font-semibold text-heading">
+                Expiring Documents
+              </h2>
+              <p class="text-xs text-subtle mt-0.5">
+                Passports, KITAS, VITAS & permits within 60 days (or expired)
+              </p>
+            </div>
+          </div>
+          <span
+            v-if="expiringDocs.length"
+            class="text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full"
+            >{{ expiringDocs.length }}</span
+          >
+        </div>
+
+        <div v-if="expiringLoading" class="text-sm text-subtle py-4 text-center">
+          Loading…
+        </div>
+        <div
+          v-else-if="expiringDocs.length"
+          class="flex flex-col gap-2 max-h-72 overflow-y-auto"
+        >
+          <div
+            v-for="doc in expiringDocs"
+            :key="doc.id"
+            class="flex items-center gap-3 -mx-2 px-2 py-2 rounded-lg hover:bg-panel-light cursor-pointer transition-colors"
+            @click="
+              doc.application && router.push(`/applications/${doc.application.id}`)
+            "
+          >
+            <div class="min-w-0 flex-1">
+              <p class="text-[13px] font-medium text-heading truncate">
+                {{ documentTypeLabel(doc.documentType) }}
+                <span class="text-subtle font-normal"
+                  >· {{ doc.application?.client?.fullName ?? '—' }}</span
+                >
+              </p>
+              <p class="text-xs text-subtle truncate">
+                {{ doc.application?.referenceNumber }} ·
+                {{ visaTypeLabel(doc.application?.visaType) }}
+              </p>
+            </div>
+            <div class="text-right shrink-0">
+              <p
+                class="text-[13px] font-semibold"
+                :class="expiryClasses(expiryState(doc.expiryDate))"
+              >
+                {{ doc.expiryDate ? formatDate(doc.expiryDate) : '—' }}
+              </p>
+              <p class="text-[11px]" :class="expiryClasses(expiryState(doc.expiryDate))">
+                <template v-if="doc.expiryDate && daysUntil(doc.expiryDate) < 0"
+                  >Expired</template
+                >
+                <template v-else-if="doc.expiryDate"
+                  >{{ daysUntil(doc.expiryDate) }}d left</template
+                >
+              </p>
+            </div>
+          </div>
+        </div>
+        <div
+          v-else
+          class="flex flex-col items-center justify-center text-center py-6 gap-2"
+        >
+          <FileWarning :size="22" class="text-subtle" />
+          <p class="text-sm text-subtle">
+            No documents expiring in the next 60 days.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── KITAS Processing Lifecycle ───────────────────────────────────── -->
     <section class="mt-4">
       <div class="px-5 py-4 rounded-2xl bg-red-500/8 border border-red-500/20">
         <h3 class="text-[15px] font-semibold text-heading mb-1">
-          📋 Document Processing Flow
+          📋 KITAS Processing Lifecycle
         </h3>
         <p class="text-sm text-body leading-relaxed">
-          Each application follows:
+          Each application moves through:
           <strong class="text-heading"
-            >Received → In Review → In Process → Approved / Rejected →
+            >Document → Immigration → Biometric → Decision →
             Completed</strong
-          >
+          >, with granular stages (e.g. Submitted to Immigration, Biometric
+          Scheduled, E-Visa Issued) tracked end to end.
         </p>
       </div>
     </section>

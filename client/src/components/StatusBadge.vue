@@ -1,26 +1,17 @@
 <script setup lang="ts">
-import type { DocStatus } from '../types';
-import { statusLabel } from '../utils/formatters';
+import type { ApplicationStatus } from '../types';
+import { applicationStatusLabel, statusBadgeClass } from '../utils/labels';
 
-const props = defineProps<{ status: DocStatus }>();
-
-const colorMap: Record<DocStatus, string> = {
-  RECEIVED: 'bg-slate-500/15 text-slate-400',
-  IN_REVIEW: 'bg-amber-500/15 text-amber-400',
-  IN_PROCESS: 'bg-red-500/15 text-red-400',
-  APPROVED: 'bg-emerald-500/15 text-emerald-400',
-  REJECTED: 'bg-rose-500/15 text-rose-400',
-  COMPLETED: 'bg-emerald-500/15 text-emerald-400',
-};
+const props = defineProps<{ status: ApplicationStatus }>();
 </script>
 
 <template>
   <span
     :class="[
-      'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide whitespace-nowrap',
-      colorMap[props.status] ?? 'bg-slate-500/15 text-slate-400',
+      'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wide whitespace-nowrap',
+      statusBadgeClass(props.status),
     ]"
   >
-    {{ statusLabel(props.status) }}
+    {{ applicationStatusLabel(props.status) }}
   </span>
 </template>

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, isNotNull, lte } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { applicationDocuments } from '../../db/schema.js';
 import { AppError } from '../../utils/AppError.js';
@@ -21,6 +21,33 @@ export class ApplicationDocumentsRepository {
     return await db.query.applicationDocuments.findMany({
       where: eq(applicationDocuments.applicationId, applicationId),
       orderBy: (d, { desc }) => [desc(d.createdAt)],
+    });
+  }
+
+  /**
+   * Documents with an expiry date on or before (today + `days`). Includes
+   * already-expired documents so staff can act on them. Joined with the parent
+   * application + client for display in the monitoring dashboard.
+   */
+  async findExpiringWithin(days: number) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    return await db.query.applicationDocuments.findMany({
+      where: and(
+        isNotNull(applicationDocuments.expiryDate),
+        lte(applicationDocuments.expiryDate, cutoffStr),
+      ),
+      orderBy: (d, { asc }) => [asc(d.expiryDate)],
+      with: {
+        application: {
+          columns: { id: true, referenceNumber: true, visaType: true },
+          with: {
+            client: { columns: { id: true, fullName: true } },
+          },
+        },
+      },
     });
   }
 

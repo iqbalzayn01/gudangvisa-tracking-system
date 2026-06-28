@@ -2,139 +2,107 @@ import apiClient from './client';
 import type {
   ApiResponse,
   Application,
+  ApplicationDocument,
   CreateApplicationPayload,
   UpdateStatusPayload,
+  UpdateBiometricPayload,
+  TrackingHistory,
 } from '../types';
+import { progressFromStatus } from '../utils/labels';
 
-function mapStatus(bStatus: string): any {
-  if (['draft', 'document_collection'].includes(bStatus)) return 'RECEIVED';
-  if (['document_verification', 'document_revision'].includes(bStatus)) return 'IN_REVIEW';
-  if (['submission_to_immigration', 'immigration_review', 'biometric_scheduled', 'biometric_completed', 'immigration_processing'].includes(bStatus)) return 'IN_PROCESS';
-  if (['approval_pending', 'approved', 'evisa_issued'].includes(bStatus)) return 'APPROVED';
-  if (['completed'].includes(bStatus)) return 'COMPLETED';
-  if (['rejected', 'cancelled'].includes(bStatus)) return 'REJECTED';
-  return 'RECEIVED';
-}
-
-function unmapStatus(fStatus: string): string {
-  if (fStatus === 'RECEIVED') return 'document_collection';
-  if (fStatus === 'IN_REVIEW') return 'document_verification';
-  if (fStatus === 'IN_PROCESS') return 'immigration_processing';
-  if (fStatus === 'APPROVED') return 'approved';
-  if (fStatus === 'COMPLETED') return 'completed';
-  if (fStatus === 'REJECTED') return 'rejected';
-  return 'draft';
-}
-
-function mapDoc(d: any): any {
+/** Map a backend document record to the frontend shape (1:1, no collapsing). */
+export function mapDoc(d: any): ApplicationDocument {
   return {
     id: d.id,
     applicationId: d.applicationId,
     docName: d.fileName,
-    docType: 'VISA',
-    status: d.status === 'pending' ? 'IN_REVIEW' : d.status === 'verified' ? 'APPROVED' : 'REJECTED',
+    documentType: d.documentType,
+    status: d.status,
+    rejectionReason: d.rejectionReason ?? null,
+    issuedDate: d.issuedDate ?? null,
+    expiryDate: d.expiryDate ?? null,
+    verifiedAt: d.verifiedAt ?? null,
     fileUrl: d.filePath,
     isPublic: true,
     createdAt: d.createdAt,
-    fileDownloadUrl: d.filePath
+    fileDownloadUrl: d.fileDownloadUrl ?? undefined,
   };
 }
 
-function mapHistory(h: any): any {
+function mapHistory(h: any): TrackingHistory {
+  // The backend stores one description + an `isVisibleToClient` flag. Internal
+  // entries are surfaced (with a lock) to staff but hidden from clients.
+  const visible = h.isVisibleToClient !== false;
   return {
     id: h.id,
-    statusName: mapStatus(h.toStatus),
-    descriptionPublic: h.description,
+    statusName: h.toStatus,
+    descriptionPublic: visible ? h.description : '',
+    descriptionInternal: visible ? null : h.description,
     updatedBy: h.changedByStaffId || '',
     createdAt: h.createdAt,
-    updater: h.changedByStaff ? { fullName: h.changedByStaff.fullName } : undefined
+    updater: h.changedByStaff
+      ? { id: h.changedByStaff.id, fullName: h.changedByStaff.fullName }
+      : undefined,
   };
 }
 
-/** Map a backend status to a 0–100 progress percentage. */
-function progressFromStatus(bStatus: string): number {
-  const order = [
-    'draft',
-    'document_collection',
-    'document_verification',
-    'document_revision',
-    'submission_to_immigration',
-    'immigration_review',
-    'biometric_scheduled',
-    'biometric_completed',
-    'immigration_processing',
-    'approval_pending',
-    'approved',
-    'evisa_issued',
-    'completed',
-  ];
-  if (bStatus === 'completed' || bStatus === 'evisa_issued') return 100;
-  if (bStatus === 'rejected' || bStatus === 'cancelled') return 100;
-  const idx = order.indexOf(bStatus);
-  if (idx < 0) return 0;
-  return Math.round((idx / (order.length - 1)) * 100);
-}
-
-/**
- * Derive a deterministic priority from the application id so the value is
- * stable across reloads (the backend has no priority field).
- */
-function priorityFromId(id: string): Application['priority'] {
-  const levels: Application['priority'][] = [
-    'LOW',
-    'MEDIUM',
-    'HIGH',
-    'URGENT',
-  ];
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  // Skew toward MEDIUM/HIGH for a realistic distribution.
-  const weighted = [0, 1, 1, 2, 2, 3];
-  return levels[weighted[hash % weighted.length]];
-}
-
+/** Map a backend application record to the frontend shape (1:1, no collapsing). */
 export function mapApplication(backendData: any): Application {
   return {
     id: backendData.id,
     trackingCode: backendData.referenceNumber,
     clientId: backendData.clientId,
-    serviceType: backendData.visaType === 'B211A' ? 'VISA' : 'KITAS',
     visaType: backendData.visaType,
-    currentStatus: mapStatus(backendData.status),
-    priority: priorityFromId(backendData.id || ''),
+    currentStatus: backendData.status,
+    priority: backendData.priority ?? 'medium',
     progress:
-      typeof backendData.progressPercentage === 'number'
+      typeof backendData.progressPercentage === 'number' &&
+      backendData.progressPercentage > 0
         ? backendData.progressPercentage
         : progressFromStatus(backendData.status),
+    notes: backendData.notes ?? null,
+    checklist: Array.isArray(backendData.checklist)
+      ? backendData.checklist
+      : [],
     biometricStatus: backendData.biometricStatus ?? 'not_scheduled',
     biometricDate: backendData.biometricDate ?? null,
     biometricTime: backendData.biometricTime ?? null,
     biometricLocation: backendData.biometricLocation ?? null,
     fieldAssistantName: backendData.fieldAssistantName ?? null,
+    fieldAssistantPhone: backendData.fieldAssistantPhone ?? null,
     handledBy: backendData.assignedStaffId || '',
     createdAt: backendData.createdAt,
-    client: backendData.client ? {
-       id: backendData.client.id,
-       name: backendData.client.fullName,
-       passportNumber: backendData.client.passportNumber,
-       contactNumber: backendData.client.phone,
-       createdBy: '',
-       createdAt: backendData.client.createdAt
-    } : undefined,
-    handler: backendData.assignedStaff ? {
-       id: backendData.assignedStaff.id,
-       fullName: backendData.assignedStaff.fullName,
-       role: backendData.assignedStaff.role === 'admin' ? 'ADMIN' : 'STAFF'
-    } : undefined,
+    client: backendData.client
+      ? {
+          id: backendData.client.id,
+          name: backendData.client.fullName,
+          passportNumber: backendData.client.passportNumber,
+          contactNumber: backendData.client.phone,
+          nationality: backendData.client.nationality ?? null,
+          createdBy: '',
+          createdAt: backendData.client.createdAt,
+        }
+      : undefined,
+    handler: backendData.assignedStaff
+      ? {
+          id: backendData.assignedStaff.id,
+          fullName: backendData.assignedStaff.fullName,
+          role: backendData.assignedStaff.role === 'admin' ? 'ADMIN' : 'STAFF',
+        }
+      : undefined,
     documents: (backendData.documents || []).map(mapDoc),
-    histories: (backendData.trackingHistory || []).map(mapHistory)
+    histories: (backendData.trackingHistory || []).map(mapHistory),
   };
 }
 
-export async function createApplication(payload: CreateApplicationPayload): Promise<Application> {
+export async function createApplication(
+  payload: CreateApplicationPayload,
+): Promise<Application> {
   const { data } = await apiClient.post<ApiResponse<any>>('/applications', {
     clientId: payload.clientId,
-    visaType: payload.serviceType === 'VISA' ? 'B211A' : 'KITAS_WORKING'
+    visaType: payload.visaType,
+    priority: payload.priority ?? 'medium',
+    notes: payload.notes,
   });
   return mapApplication(data.data);
 }
@@ -149,12 +117,41 @@ export async function getApplicationById(id: string): Promise<Application> {
   return mapApplication(data.data);
 }
 
-export async function updateApplicationStatus(id: string, payload: UpdateStatusPayload): Promise<Application> {
-  const { data } = await apiClient.patch<ApiResponse<any>>(`/applications/${id}/status`, {
-    status: unmapStatus(payload.statusName),
-    description: payload.descriptionPublic,
-    isVisibleToClient: true
-  });
+export async function updateApplicationStatus(
+  id: string,
+  payload: UpdateStatusPayload,
+): Promise<Application> {
+  const { data } = await apiClient.patch<ApiResponse<any>>(
+    `/applications/${id}/status`,
+    {
+      status: payload.status,
+      description: payload.descriptionPublic,
+      isVisibleToClient: payload.isVisibleToClient ?? true,
+    },
+  );
+  return mapApplication(data.data);
+}
+
+export async function updateBiometricSchedule(
+  id: string,
+  payload: UpdateBiometricPayload,
+): Promise<Application> {
+  const { data } = await apiClient.patch<ApiResponse<any>>(
+    `/applications/${id}/biometric`,
+    payload,
+  );
+  return mapApplication(data.data);
+}
+
+export async function toggleChecklistItem(
+  id: string,
+  itemIndex: number,
+  isChecked: boolean,
+): Promise<Application> {
+  const { data } = await apiClient.patch<ApiResponse<any>>(
+    `/applications/${id}/checklist`,
+    { itemIndex, isChecked },
+  );
   return mapApplication(data.data);
 }
 

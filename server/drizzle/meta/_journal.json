@@ -8,6 +8,13 @@
       "when": 1780306650416,
       "tag": "0000_dry_spiral",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782574986114,
+      "tag": "0001_oval_stick",
+      "breakpoints": true
     }
   ]
 }

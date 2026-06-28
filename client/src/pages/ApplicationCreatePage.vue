@@ -7,7 +7,13 @@ import { createApplication } from '../api/applications.api';
 import { useClientStore } from '../stores/client.store';
 import { useApplicationStore } from '../stores/application.store';
 import { useNotificationStore } from '../stores/notification.store';
-import type { Application, Priority } from '../types';
+import type { Application, Priority, VisaType } from '../types';
+import {
+  VISA_TYPE_OPTIONS,
+  PRIORITY_OPTIONS,
+  visaTypeLabel,
+  applicationStatusLabel,
+} from '../utils/labels';
 
 const router = useRouter();
 const clientStore = useClientStore();
@@ -15,25 +21,28 @@ const applicationStore = useApplicationStore();
 const notify = useNotificationStore();
 
 const clientId = ref('');
-const serviceType = ref('');
-const priority = ref<Priority>('MEDIUM');
+const visaType = ref<VisaType | ''>('');
+const priority = ref<Priority>('medium');
+const notes = ref('');
 const isSubmitting = ref(false);
 const created = ref<Application | null>(null);
 
-const priorityOptions: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+const visaTypeOptions = VISA_TYPE_OPTIONS;
+const priorityOptions = PRIORITY_OPTIONS;
 
 onMounted(() => {
   if (!clientStore.hasFetched) clientStore.fetchAll();
 });
 
 async function handleSubmit(): Promise<void> {
-  if (!clientId.value || !serviceType.value.trim()) return;
+  if (!clientId.value || !visaType.value) return;
   isSubmitting.value = true;
   try {
     const application = await createApplication({
       clientId: clientId.value,
-      serviceType: serviceType.value.trim(),
+      visaType: visaType.value,
       priority: priority.value,
+      notes: notes.value.trim() || undefined,
     });
     applicationStore.addLocal(application);
     created.value = application;
@@ -49,8 +58,9 @@ async function handleSubmit(): Promise<void> {
 
 function handleReset(): void {
   clientId.value = '';
-  serviceType.value = '';
-  priority.value = 'MEDIUM';
+  visaType.value = '';
+  priority.value = 'medium';
+  notes.value = '';
   created.value = null;
 }
 </script>
@@ -95,39 +105,23 @@ function handleReset(): void {
         <ClientCombobox id="tc-client" v-model="clientId" />
       </div>
 
-      <!-- <div class="flex flex-col gap-1.5">
-        <label class="text-[13px] font-semibold text-heading" for="tc-service"
-          >Service Type *</label
-        >
-        <input
-          id="tc-service"
-          v-model="serviceType"
-          type="text"
-          class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none focus:border-red-500 focus:ring-3 focus:ring-red-500/12 placeholder:text-subtle"
-          placeholder="e.g. VISA Extension, KITAS Renewal"
-          required
-        />
-      </div> -->
-
       <div class="flex flex-col gap-1.5">
         <label class="text-[13px] font-semibold text-heading" for="tc-service">
-          Service Type *
+          Visa Type *
         </label>
         <select
           id="tc-service"
-          v-model="serviceType"
+          v-model="visaType"
           class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none cursor-pointer appearance-none focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
           required
         >
-          <option value="" disabled>Select service type</option>
-          <option value="VISA">VISA — Visa Application / Extension</option>
-          <option value="KITAS">KITAS — KITAS Renewal / New Application</option>
-          <option value="PASSPORT">
-            PASSPORT — Passport Application / Renewal
+          <option value="" disabled>Select visa type</option>
+          <option v-for="o in visaTypeOptions" :key="o.value" :value="o.value">
+            {{ o.label }}
           </option>
         </select>
         <p class="text-xs text-subtle mt-0.5">
-          Select the immigration document service for this application.
+          The correct type sets the right document checklist for this case.
         </p>
       </div>
 
@@ -140,8 +134,8 @@ function handleReset(): void {
           v-model="priority"
           class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-full outline-none cursor-pointer appearance-none focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
         >
-          <option v-for="p in priorityOptions" :key="p" :value="p">
-            {{ p.charAt(0) + p.slice(1).toLowerCase() }}
+          <option v-for="p in priorityOptions" :key="p.value" :value="p.value">
+            {{ p.label }}
           </option>
         </select>
         <p class="text-xs text-subtle mt-0.5">
@@ -149,10 +143,23 @@ function handleReset(): void {
         </p>
       </div>
 
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[13px] font-semibold text-heading" for="tc-notes">
+          Notes
+        </label>
+        <textarea
+          id="tc-notes"
+          v-model="notes"
+          rows="3"
+          class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none focus:border-red-500 focus:ring-3 focus:ring-red-500/12 placeholder:text-subtle resize-y"
+          placeholder="Optional internal notes about this application."
+        />
+      </div>
+
       <Button variant="ghost"
         type="submit"
         class="w-full flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 cursor-pointer h-auto"
-        :disabled="isSubmitting || !clientId || !serviceType.trim()"
+        :disabled="isSubmitting || !clientId || !visaType"
       >
         <span
           v-if="isSubmitting"
@@ -194,10 +201,12 @@ function handleReset(): void {
       </div>
       <div class="flex flex-col gap-2 text-sm text-body mb-6">
         <div>
-          <span class="text-subtle">Service:</span> {{ created.serviceType }}
+          <span class="text-subtle">Visa Type:</span>
+          {{ visaTypeLabel(created.visaType) }}
         </div>
         <div>
-          <span class="text-subtle">Status:</span> {{ created.currentStatus }}
+          <span class="text-subtle">Status:</span>
+          {{ applicationStatusLabel(created.currentStatus) }}
         </div>
       </div>
       <div class="flex justify-center gap-3">

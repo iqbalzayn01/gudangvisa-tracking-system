@@ -5,6 +5,9 @@ dotenv.config({ quiet: true });
 export const ENV = {
   PORT: process.env.PORT || '8000',
   DATABASE_URL: process.env.DATABASE_URL,
+  // Migration-only connection (Supabase session pooler). Falls back to
+  // DATABASE_URL so it stays optional. Used by drizzle-kit, not the runtime.
+  DIRECT_URL: process.env.DIRECT_URL || process.env.DATABASE_URL,
   JWT_SECRET:
     (process.env.JWT_SECRET as string) || 'default-super-secret-key-for-dev',
   JWT_REFRESH_SECRET:

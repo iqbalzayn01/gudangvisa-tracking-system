@@ -6,13 +6,20 @@ import { deleteApplication } from '../api/applications.api';
 import { useAuthStore } from '../stores/auth.store';
 import { useApplicationStore } from '../stores/application.store';
 import { useNotificationStore } from '../stores/notification.store';
-import type { DocStatus, Priority } from '../types';
+import type { ApplicationStatus, Priority } from '../types';
 import StatusBadge from '../components/StatusBadge.vue';
 import PriorityBadge from '../components/PriorityBadge.vue';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import FilterSelect from '../components/FilterSelect.vue';
-import { formatDate, visaTypeLabel } from '../utils/formatters';
+import { formatDate } from '../utils/formatters';
+import {
+  APPLICATION_STATUSES,
+  PRIORITY_OPTIONS,
+  applicationStatusLabel,
+  priorityLabel,
+  visaTypeLabel,
+} from '../utils/labels';
 import { copyToClipboard } from '../utils/clipboard';
 
 const route = useRoute();
@@ -26,7 +33,7 @@ const deleteTargetId = ref<string | null>(null);
 // ── Search & Filter state ────────────────────────────────────────────────────
 const searchInput = ref('');
 const searchQuery = ref('');
-const filterStatus = ref<DocStatus | ''>('');
+const filterStatus = ref<ApplicationStatus | ''>('');
 const filterPriority = ref<Priority | ''>('');
 const searchRef = ref<HTMLInputElement | null>(null);
 
@@ -39,26 +46,13 @@ watch(searchInput, (val) => {
   }, 200);
 });
 
-const statusOptions: DocStatus[] = [
-  'RECEIVED',
-  'IN_REVIEW',
-  'IN_PROCESS',
-  'APPROVED',
-  'REJECTED',
-  'COMPLETED',
-];
-
-const priorityOptions: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-
 const statusSelectOptions = computed(() =>
-  statusOptions.map((s) => ({ value: s, label: s.replace(/_/g, ' ') })),
-);
-const prioritySelectOptions = computed(() =>
-  priorityOptions.map((p) => ({
-    value: p,
-    label: p.charAt(0) + p.slice(1).toLowerCase(),
+  APPLICATION_STATUSES.map((s) => ({
+    value: s,
+    label: applicationStatusLabel(s),
   })),
 );
+const prioritySelectOptions = computed(() => PRIORITY_OPTIONS);
 
 const filteredApplications = computed(() => {
   let list = applicationStore.sortedApplications;
@@ -66,7 +60,7 @@ const filteredApplications = computed(() => {
     list = list.filter((a) => a.currentStatus === filterStatus.value);
   if (filterPriority.value)
     list = list.filter(
-      (a) => (a.priority ?? 'MEDIUM') === filterPriority.value,
+      (a) => (a.priority ?? 'medium') === filterPriority.value,
     );
   const q = searchQuery.value.trim().toLowerCase();
   if (q) {
@@ -74,7 +68,6 @@ const filteredApplications = computed(() => {
       (a) =>
         a.trackingCode.toLowerCase().includes(q) ||
         (a.client?.name ?? '').toLowerCase().includes(q) ||
-        a.serviceType.toLowerCase().includes(q) ||
         visaTypeLabel(a.visaType).toLowerCase().includes(q) ||
         (a.handler?.fullName ?? '').toLowerCase().includes(q),
     );
@@ -329,7 +322,7 @@ async function handleDelete(): Promise<void> {
             v-if="filterStatus !== ''"
             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-panel border border-edge text-xs font-medium text-body"
           >
-            {{ filterStatus.replace(/_/g, ' ') }}
+            {{ applicationStatusLabel(filterStatus) }}
             <Button
               variant="ghost"
               class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer h-auto rounded-full"
@@ -342,9 +335,7 @@ async function handleDelete(): Promise<void> {
             v-if="filterPriority !== ''"
             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-panel border border-edge text-xs font-medium text-body"
           >
-            {{
-              filterPriority.charAt(0) + filterPriority.slice(1).toLowerCase()
-            }}
+            {{ priorityLabel(filterPriority) }}
             <Button
               variant="ghost"
               class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer h-auto rounded-full"
@@ -477,7 +468,7 @@ async function handleDelete(): Promise<void> {
                 <StatusBadge :status="a.currentStatus" />
               </td>
               <td class="px-4 py-3 border-b border-edge max-sm:hidden">
-                <PriorityBadge :priority="a.priority ?? 'MEDIUM'" />
+                <PriorityBadge :priority="a.priority ?? 'medium'" />
               </td>
               <td class="px-4 py-3 border-b border-edge max-md:hidden">
                 <div class="flex items-center gap-2 min-w-28">

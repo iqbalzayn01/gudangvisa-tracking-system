@@ -2,17 +2,62 @@
 
 export type UserRole = 'ADMIN' | 'STAFF';
 
-export type DocType = 'VISA' | 'KITAS' | 'PASSPORT';
+/** Visa / permit types (mirrors backend `visa_type`). */
+export type VisaType =
+  | 'B211A'
+  | 'KITAS_WORKING'
+  | 'KITAS_SPOUSE'
+  | 'KITAS_INVESTOR'
+  | 'KITAS_RETIREMENT';
 
-export type DocStatus =
-  | 'RECEIVED'
-  | 'IN_REVIEW'
-  | 'IN_PROCESS'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'COMPLETED';
+/**
+ * Full KITAS immigration lifecycle (mirrors backend `application_status`).
+ * This is the source of truth for monitoring — no longer collapsed to a
+ * handful of generic buckets.
+ */
+export type ApplicationStatus =
+  | 'draft'
+  | 'document_collection'
+  | 'document_verification'
+  | 'document_revision'
+  | 'submission_to_immigration'
+  | 'immigration_review'
+  | 'biometric_scheduled'
+  | 'biometric_completed'
+  | 'immigration_processing'
+  | 'approval_pending'
+  | 'approved'
+  | 'evisa_issued'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled'
+  | 'on_hold';
 
-export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+/** Verification state of an uploaded document (mirrors backend `document_status`). */
+export type DocumentStatus = 'pending' | 'verified' | 'rejected';
+
+/** Professional / legal document categories (mirrors backend `document_type`). */
+export type DocumentType =
+  | 'passport'
+  | 'photo'
+  | 'sponsor_letter'
+  | 'company_nib'
+  | 'bank_statement'
+  | 'rejection_letter'
+  | 'final_evisa'
+  | 'marriage_certificate'
+  | 'insurance_certificate'
+  | 'rptka'
+  | 'notifikasi'
+  | 'vitas_telex'
+  | 'dkptka_payment'
+  | 'domicile_certificate'
+  | 'diploma_certificate'
+  | 'cv_resume'
+  | 'kitas_card'
+  | 'other';
+
+export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type BiometricStatus =
   | 'not_scheduled'
@@ -82,20 +127,29 @@ export interface UpdateClientPayload {
   contactNumber?: string;
 }
 
+// ─── Checklist (per-visa-type document requirements) ─────────────────────────
+
+export interface ChecklistItem {
+  name: string;
+  isChecked: boolean;
+  checkedAt?: string | null;
+  checkedByStaffId?: string | null;
+}
+
 // ─── Application (Visa Tracking Record) ──────────────────────────────────────
 
 export interface Application {
   id: string;
-  /** Human-readable reference number (e.g. GV-2406-0001). */
+  /** Human-readable reference number (e.g. GV-2026-00001). */
   trackingCode: string;
   clientId: string;
-  serviceType: string;
-  /** Raw backend visa type (B211A, KITAS_WORKING, …). */
-  visaType?: string;
-  currentStatus: DocStatus;
-  priority?: Priority;
+  visaType: VisaType;
+  currentStatus: ApplicationStatus;
+  priority: Priority;
   /** 0–100 completion percentage. */
   progress?: number;
+  notes?: string | null;
+  checklist?: ChecklistItem[];
   handledBy: string;
   createdAt: string;
   client?: Client;
@@ -108,18 +162,30 @@ export interface Application {
   biometricTime?: string | null;
   biometricLocation?: string | null;
   fieldAssistantName?: string | null;
+  fieldAssistantPhone?: string | null;
 }
 
 export interface CreateApplicationPayload {
   clientId: string;
-  serviceType: string;
+  visaType: VisaType;
   priority?: Priority;
+  notes?: string;
 }
 
 export interface UpdateStatusPayload {
-  statusName: DocStatus;
+  status: ApplicationStatus;
   descriptionPublic: string;
   descriptionInternal?: string;
+  isVisibleToClient?: boolean;
+}
+
+export interface UpdateBiometricPayload {
+  biometricStatus: BiometricStatus;
+  biometricDate?: string;
+  biometricTime?: string;
+  biometricLocation?: string;
+  fieldAssistantName?: string;
+  fieldAssistantPhone?: string;
 }
 
 // ─── Document (attached to an application) ───────────────────────────────────
@@ -128,8 +194,13 @@ export interface ApplicationDocument {
   id: string;
   applicationId: string;
   docName: string;
-  docType: DocType;
-  status: DocStatus;
+  documentType: DocumentType;
+  status: DocumentStatus;
+  rejectionReason?: string | null;
+  /** Validity tracking for expiry monitoring. */
+  issuedDate?: string | null;
+  expiryDate?: string | null;
+  verifiedAt?: string | null;
   fileUrl: string;
   isPublic: boolean;
   createdAt: string;
@@ -139,10 +210,16 @@ export interface ApplicationDocument {
 export interface AddDocumentPayload {
   applicationId: string;
   docName: string;
-  docType: DocType;
-  status?: DocStatus;
+  documentType: DocumentType;
   isPublic?: boolean;
   storagePath: string;
+  issuedDate?: string;
+  expiryDate?: string;
+}
+
+export interface VerifyDocumentPayload {
+  status: 'verified' | 'rejected';
+  rejectionReason?: string;
 }
 
 export interface UploadUrlPayload {
@@ -157,12 +234,27 @@ export interface UploadUrlResponse {
   token: string;
 }
 
+/** Document nearing or past its expiry date (dashboard monitoring widget). */
+export interface ExpiringDocument {
+  id: string;
+  documentType: DocumentType;
+  fileName: string;
+  issuedDate?: string | null;
+  expiryDate: string | null;
+  application?: {
+    id: string;
+    referenceNumber: string;
+    visaType: VisaType;
+    client?: { id: string; fullName: string };
+  };
+}
+
 // ─── Tracking History ────────────────────────────────────────────────────────
 
 export interface TrackingHistory {
   id: string;
   applicationId?: string;
-  statusName: DocStatus;
+  statusName: ApplicationStatus;
   descriptionPublic: string;
   descriptionInternal?: string | null;
   updatedBy: string;
@@ -175,8 +267,8 @@ export interface TrackingHistory {
 export interface PublicTrackingResult {
   id: string;
   trackingCode: string;
-  serviceType: string;
-  currentStatus: DocStatus;
+  visaType: VisaType;
+  currentStatus: ApplicationStatus;
   client: { name: string };
   handler: { fullName: string };
   documents: PublicDocument[];
@@ -187,15 +279,15 @@ export interface PublicTrackingResult {
 export interface PublicDocument {
   id: string;
   docName: string;
-  docType: DocType;
-  status: DocStatus;
+  documentType: DocumentType;
+  status: DocumentStatus;
   fileDownloadUrl: string | null;
   createdAt: string;
 }
 
 export interface PublicHistory {
   id: string;
-  statusName: DocStatus;
+  statusName: ApplicationStatus;
   descriptionPublic: string;
   updatedBy: { fullName: string };
   createdAt: string;

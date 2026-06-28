@@ -84,7 +84,7 @@ Per-route metadata (title, description, `robots`, canonical, Open Graph / Twitte
 ```
 src/
 ├── api/            # Axios instances + typed API modules (staff + portal)
-├── components/     # Reusable UI (StatusBadge, StatusStepper, TrackingTimeline, …)
+├── components/     # Reusable UI (StatusBadge, PriorityBadge, StatusStepper, TrackingTimeline, …)
 │   └── ui/         # reka-ui / shadcn-vue primitives (Button, Select)
 ├── guards/         # Router navigation guard (staff + client domains)
 ├── i18n/           # vue-i18n setup + locales/{id,en}.ts
@@ -93,6 +93,14 @@ src/
 ├── pages/          # Route views (incl. PublicTrackingPage, ClientLoginPage, ClientPortalPage)
 ├── stores/         # Pinia stores (auth, client-auth, application, client, notification, theme)
 ├── styles/         # globals.css (Tailwind v4 + design tokens)
-├── types/          # Shared TypeScript types
-└── utils/          # Formatters, clipboard, seo.ts
+├── types/          # Shared TypeScript types (mirror backend enums: ApplicationStatus, VisaType, DocumentType, Priority, …)
+└── utils/          # formatters.ts, labels.ts (status/visa/document/priority labels + badge classes), clipboard, seo.ts
 ```
+
+## Labels & Status Metadata
+
+`src/utils/labels.ts` is the single source of truth for human-readable labels, badge colors, and the canonical ordering of the backend enums (the full 16-stage `application_status` lifecycle, `visa_type`, `document_type`, `priority`, `document_status`). Components like `StatusBadge`, `PriorityBadge`, `StatusStepper`, and the status `<select>` all read from it, so the UI stays in sync with the database enums in one place.
+
+## Document Expiry Monitoring
+
+Uploaded documents carry optional `issuedDate` / `expiryDate`. The staff dashboard surfaces an **Expiring Documents** widget (passports, KITAS, VITAS & permits expiring within 60 days, or already expired), backed by `GET /api/documents/expiring`. Expiry state and styling are derived in `utils/formatters.ts` (`expiryState`, `expiryClasses`, `daysUntil`).

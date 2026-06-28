@@ -7,7 +7,9 @@ import type {
 } from './applications.validation.js';
 import type { ChecklistItem } from '../../types/index.js';
 
-// Default checklist items per visa type
+// Default document checklist per visa type. Each item corresponds to a real
+// `documentType` so checklist progress maps onto uploaded professional
+// documents (Indonesian KITAS immigration workflow).
 const DEFAULT_CHECKLIST: Record<string, ChecklistItem[]> = {
   B211A: [
     { name: 'Passport (min 6 months validity)', isChecked: false },
@@ -16,26 +18,32 @@ const DEFAULT_CHECKLIST: Record<string, ChecklistItem[]> = {
     { name: 'Bank Statement', isChecked: false },
   ],
   KITAS_WORKING: [
-    { name: 'Passport (min 6 months validity)', isChecked: false },
+    { name: 'Passport (min 18 months validity)', isChecked: false },
     { name: 'Passport-size Photo (4x6)', isChecked: false },
+    { name: 'RPTKA Approval (Kemnaker)', isChecked: false },
+    { name: 'Notifikasi / Work Permit (IMTA)', isChecked: false },
+    { name: 'DKPTKA / DPKK Payment Proof', isChecked: false },
     { name: 'Sponsor Letter', isChecked: false },
     { name: 'Company NIB', isChecked: false },
+    { name: 'Curriculum Vitae (CV)', isChecked: false },
+    { name: 'Diploma / Qualification Certificate', isChecked: false },
     { name: 'Bank Statement', isChecked: false },
   ],
   KITAS_SPOUSE: [
-    { name: 'Passport (min 6 months validity)', isChecked: false },
+    { name: 'Passport (min 18 months validity)', isChecked: false },
     { name: 'Passport-size Photo (4x6)', isChecked: false },
-    { name: 'Sponsor Letter', isChecked: false },
+    { name: 'Sponsor Letter (Indonesian spouse)', isChecked: false },
     { name: 'Marriage Certificate', isChecked: false },
   ],
   KITAS_INVESTOR: [
-    { name: 'Passport (min 6 months validity)', isChecked: false },
+    { name: 'Passport (min 18 months validity)', isChecked: false },
     { name: 'Passport-size Photo (4x6)', isChecked: false },
     { name: 'Company NIB', isChecked: false },
+    { name: 'Sponsor Letter', isChecked: false },
     { name: 'Bank Statement', isChecked: false },
   ],
   KITAS_RETIREMENT: [
-    { name: 'Passport (min 6 months validity)', isChecked: false },
+    { name: 'Passport (min 18 months validity)', isChecked: false },
     { name: 'Passport-size Photo (4x6)', isChecked: false },
     { name: 'Bank Statement', isChecked: false },
     { name: 'Insurance Certificate', isChecked: false },
@@ -64,6 +72,7 @@ export class ApplicationsService {
       assignedStaffId: staffId,
       visaType: data.visaType,
       status: 'draft',
+      priority: data.priority ?? 'medium',
       progressPercentage: 0,
       notes: data.notes ?? null,
       checklist,

@@ -111,7 +111,12 @@ Create a `.env` file in the project root:
 ```env
 PORT=8000
 NODE_ENV="development"
+
+# Runtime connection — Supabase transaction pooler (port 6543). Correct for serverless.
 DATABASE_URL="your-supabase-database-url"
+# Migration connection — Supabase session pooler (port 5432). Used by drizzle-kit.
+# Optional: falls back to DATABASE_URL if unset.
+DIRECT_URL="your-supabase-session-pooler-url"
 
 # JWT (access = 15m, refresh = 7d — lifetimes are fixed in code)
 JWT_SECRET="your-access-secret"
@@ -130,7 +135,8 @@ FRONTEND_URL="http://localhost:5173"   # defaults to http://localhost:3000 if un
 
 | Variable               | Where to find it                                                                        |
 | ---------------------- | --------------------------------------------------------------------------------------- |
-| `DATABASE_URL`         | Supabase Dashboard → Project Settings → Database → Connection string (Transaction mode) |
+| `DATABASE_URL`         | Supabase Dashboard → Project Settings → Database → Connection string (**Transaction** pooler, port 6543) |
+| `DIRECT_URL`           | Same dialog → **Session** pooler (port 5432). Used only for migrations; see note below  |
 | `JWT_SECRET`           | Any random string. Generate one with: `openssl rand -hex 32`                            |
 | `SUPABASE_URL`         | Supabase Dashboard → Project Settings → API → Project URL                               |
 | `SUPABASE_SERVICE_KEY` | Supabase Dashboard → Project Settings → API → `service_role` key                        |
@@ -143,6 +149,8 @@ FRONTEND_URL="http://localhost:5173"   # defaults to http://localhost:3000 if un
 npm run db:generate
 npm run db:migrate
 ```
+
+> **Migrations run over `DIRECT_URL` (Supabase session pooler, port 5432)** — see [`drizzle.config.ts`](./drizzle.config.ts). The transaction pooler (port 6543) used at runtime can stall `drizzle-kit migrate` on multi-statement DDL, so migration tooling uses the session pooler instead. If `DIRECT_URL` is unset it falls back to `DATABASE_URL`.
 
 ### 6. Set up Supabase Storage
 
@@ -205,9 +213,9 @@ The schema has **7 tables**, defined in [`src/db/schema.ts`](./src/db/schema.ts)
 | `notifications`         | Per-client notifications                                                                 |
 | `audit_logs`            | Staff/admin action log (actor, action, entity, old/new values, IP)                       |
 
-**Native enums:** `internal_role`, `application_status` (16 stages, `draft` → `completed`/`rejected`/`cancelled`/`on_hold`), `visa_type` (`B211A`, `KITAS_WORKING`, `KITAS_SPOUSE`, `KITAS_INVESTOR`, `KITAS_RETIREMENT`), `document_type` (`passport`, `photo`, `sponsor_letter`, `company_nib`, `bank_statement`, `rejection_letter`, `final_evisa`), `document_status` (`pending` \| `verified` \| `rejected`), `biometric_status` (`not_scheduled` \| `scheduled` \| `completed` \| `rescheduled` \| `cancelled` \| `no_show`).
+**Native enums:** `internal_role`, `application_status` (16 stages, `draft` → `completed`/`rejected`/`cancelled`/`on_hold`), `visa_type` (`B211A`, `KITAS_WORKING`, `KITAS_SPOUSE`, `KITAS_INVESTOR`, `KITAS_RETIREMENT`), `priority` (`low` \| `medium` \| `high` \| `urgent`), `document_type` (core: `passport`, `photo`, `sponsor_letter`, `company_nib`, `bank_statement`, `rejection_letter`, `final_evisa`; KITAS professional docs: `marriage_certificate`, `insurance_certificate`, `rptka`, `notifikasi`, `vitas_telex`, `dkptka_payment`, `domicile_certificate`, `diploma_certificate`, `cv_resume`, `kitas_card`, `other`), `document_status` (`pending` \| `verified` \| `rejected`), `biometric_status` (`not_scheduled` \| `scheduled` \| `completed` \| `rescheduled` \| `cancelled` \| `no_show`).
 
-The `applications.checklist` JSONB holds an array of `{ name, isChecked, checkedAt?, checkedByStaffId? }`.
+`application_documents` also tracks document validity via `issued_date` and `expiry_date` (used by the expiry-monitoring endpoint). The `applications.checklist` JSONB holds an array of `{ name, isChecked, checkedAt?, checkedByStaffId? }`.
 
 ---
 
@@ -273,7 +281,7 @@ Auth column: **Public** (no token), **Staff** (`admin` or `staff`), **Admin** (a
 
 | Method | Endpoint                                   | Auth   | Body / Notes                                                                 |
 | ------ | ------------------------------------------ | ------ | --------------------------------------------------------------------------- |
-| POST   | `/api/applications`                        | Staff  | `{ clientId, visaType, notes? }` — generates a unique reference number      |
+| POST   | `/api/applications`                        | Staff  | `{ clientId, visaType, priority?, notes? }` — generates a unique reference number |
 | GET    | `/api/applications`                        | Staff  | List all applications                                                       |
 | GET    | `/api/applications/:id`                    | Staff  | Application detail (documents, tracking history)                            |
 | PATCH  | `/api/applications/:id/status`             | Staff  | `{ status, description, isVisibleToClient? }` — appends tracking history    |
@@ -289,8 +297,9 @@ Auth column: **Public** (no token), **Staff** (`admin` or `staff`), **Admin** (a
 | Method | Endpoint                                 | Auth   | Body / Notes                                                       |
 | ------ | ---------------------------------------- | ------ | ----------------------------------------------------------------- |
 | POST   | `/api/documents/upload-url`              | Staff  | `{ fileName, contentType, fileSize? }` → `{ signedUrl, storagePath, token }` |
-| POST   | `/api/documents`                         | Staff  | `{ applicationId, documentType, fileName, storagePath }`          |
+| POST   | `/api/documents`                         | Staff  | `{ applicationId, documentType, fileName, storagePath, issuedDate?, expiryDate? }` |
 | GET    | `/api/documents/application/:applicationId` | Staff | Documents for an application (+ temporary signed download URLs)   |
+| GET    | `/api/documents/expiring?days=30`        | Staff  | Documents expiring within N days (or already expired) for monitoring |
 | PATCH  | `/api/documents/:id/verify`              | Staff  | `{ status: 'verified' \| 'rejected', rejectionReason? }`          |
 | DELETE | `/api/documents/:id`                     | Admin  | Delete a document and its storage file                            |
 | GET    | `/api/documents/client/:id/download`     | Client | Signed download URL for a document the client owns (ownership-verified) |
