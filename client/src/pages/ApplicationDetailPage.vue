@@ -81,7 +81,6 @@ const isUpdating = ref(false);
 const showDocForm = ref(false);
 const docName = ref('');
 const documentType = ref<DocumentType>('passport');
-const docIsPublic = ref(false);
 const issuedDate = ref('');
 const expiryDate = ref('');
 const selectedFile = ref<File | null>(null);
@@ -195,7 +194,6 @@ async function handleDocUpload(): Promise<void> {
       applicationId: application.value.id,
       docName: docName.value.trim(),
       documentType: documentType.value,
-      isPublic: docIsPublic.value,
       storagePath,
       issuedDate: issuedDate.value || undefined,
       expiryDate: expiryDate.value || undefined,
@@ -208,7 +206,6 @@ async function handleDocUpload(): Promise<void> {
     issuedDate.value = '';
     expiryDate.value = '';
     selectedFile.value = null;
-    docIsPublic.value = false;
   } catch (err) {
     notify.error(err instanceof Error ? err.message : 'Upload failed');
   } finally {
@@ -786,16 +783,6 @@ async function handleBiometricSave(): Promise<void> {
               />
             </div>
           </div>
-          <label
-            class="flex items-center gap-2 text-sm text-body cursor-pointer"
-          >
-            <input
-              v-model="docIsPublic"
-              type="checkbox"
-              class="accent-red-500"
-            />
-            Make visible to client (public)
-          </label>
           <FileUpload
             label="Upload document file"
             @select="(f: File) => (selectedFile = f)"
@@ -843,8 +830,7 @@ async function handleBiometricSave(): Promise<void> {
                   {{ doc.docName }}
                 </p>
                 <p class="text-xs text-subtle">
-                  {{ documentTypeLabel(doc.documentType) }} ·
-                  {{ doc.isPublic ? 'Public' : 'Private' }}
+                  {{ documentTypeLabel(doc.documentType) }}
                   <span
                     v-if="doc.expiryDate"
                     class="ml-1"

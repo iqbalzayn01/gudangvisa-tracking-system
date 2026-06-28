@@ -3,7 +3,7 @@
 The Vue 3 single-page application for the Gudang Visa Tracking System. It serves two separate audiences from one build:
 
 - **Internal dashboard** (staff/admin) — applications, biometrics, document verification, users, and the audit-log viewer.
-- **Client tracking portal** — a self-service area where clients log in to follow their document processing and download completed files (e-Visa, etc.).
+- **Client tracking portal** — a self-service area where clients log in to follow their document processing and download completed files (e-Visa, etc.). A document is offered for download as soon as staff mark it **Verified** (`ClientPortalPage` lists docs with `status === 'verified'`); there is no separate "make public" toggle.
 
 ## Tech Stack
 

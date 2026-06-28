@@ -202,7 +202,6 @@ export interface ApplicationDocument {
   expiryDate?: string | null;
   verifiedAt?: string | null;
   fileUrl: string;
-  isPublic: boolean;
   createdAt: string;
   fileDownloadUrl?: string;
 }
@@ -211,7 +210,6 @@ export interface AddDocumentPayload {
   applicationId: string;
   docName: string;
   documentType: DocumentType;
-  isPublic?: boolean;
   storagePath: string;
   issuedDate?: string;
   expiryDate?: string;

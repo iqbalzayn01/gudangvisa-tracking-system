@@ -342,7 +342,7 @@ Documents are file attachments linked to an application. The API uses **signed U
 3. Browser → API        : POST /api/documents              → attach { applicationId, documentType, fileName, storagePath }
 ```
 
-Clients download their own files via `GET /api/documents/client/:id/download`, which verifies ownership (document → application → `client_id`) before issuing a temporary signed URL.
+Clients download their own files via `GET /api/documents/client/:id/download`, which verifies ownership (document → application → `client_id`) before issuing a temporary signed URL. A document is surfaced to the client for download once staff mark it **Verified** (`document_status = 'verified'`) — there is no separate public/private visibility flag on documents.
 
 ---
 

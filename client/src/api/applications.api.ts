@@ -23,7 +23,6 @@ export function mapDoc(d: any): ApplicationDocument {
     expiryDate: d.expiryDate ?? null,
     verifiedAt: d.verifiedAt ?? null,
     fileUrl: d.filePath,
-    isPublic: true,
     createdAt: d.createdAt,
     fileDownloadUrl: d.fileDownloadUrl ?? undefined,
   };
