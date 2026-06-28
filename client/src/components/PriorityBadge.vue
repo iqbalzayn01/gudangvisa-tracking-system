@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Priority } from '../types';
-import { priorityClasses, priorityLabel } from '../utils/formatters';
+import { priorityClasses, priorityLabel } from '../utils/labels';
 
 const props = defineProps<{ priority: Priority }>();
 </script>

@@ -16,7 +16,8 @@ The database uses an optimized **7-table** schema (`staff_accounts`, `client_acc
 ## Key Features
 
 - **Dual-table authentication** — internal staff/admin (`/api/auth/internal`) and external clients (`/api/auth/client`) are fully isolated, each with its own JWT access token + httpOnly refresh cookie. Client data isolation is enforced at the application layer (ownership-checked queries), not Postgres RLS.
-- **Staff/Admin dashboard** — applications, biometric scheduling, document verification checklist, client + user management (admin), and a global audit log viewer (admin).
+- **Staff/Admin dashboard** — applications (with `low`/`medium`/`high`/`urgent` priority), biometric scheduling, per-visa-type document verification checklists, client + user management (admin), and a global audit log viewer (admin).
+- **Document compliance monitoring** — uploaded documents track `issuedDate` / `expiryDate`; the dashboard surfaces an **Expiring Documents** widget (passports, KITAS, VITAS & permits expiring soon or already expired) backed by `GET /api/documents/expiring`. The full Indonesian KITAS document set is supported (RPTKA, Notifikasi/IMTA, VITAS/Telex, DKPTKA, domicile, diploma, CV, KITAS card, …).
 - **Audit trail** — every staff/admin action (CREATE, UPDATE, DELETE, STATUS_CHANGE, LOGIN, UPLOAD, DOWNLOAD) is logged with **Timestamp, User, Action, Entity, and IP Address**, filterable by action and entity.
 - **Client tracking portal** — clients log in at `/portal/login`, view their applications' status timeline at `/portal/applications`, and download completed documents via temporary signed URLs (ownership-verified). A public tracking landing lives at `/portal`.
 - **Internationalization** — UI ships in Indonesian (default) and English via `vue-i18n`, persisted per browser.
@@ -31,8 +32,8 @@ The database uses an optimized **7-table** schema (`staff_accounts`, `client_acc
 ```bash
 cd server
 npm install
-cp .env.example .env   # then fill in DATABASE_URL, JWT secrets, SUPABASE_* …
-npm run db:generate && npm run db:migrate
+cp .env.example .env   # then fill in DATABASE_URL, DIRECT_URL, JWT secrets, SUPABASE_* …
+npm run db:generate && npm run db:migrate   # migrations run over DIRECT_URL (Supabase session pooler)
 npm run seed           # creates admin + 100 demo clients (idempotent)
 npm run dev            # http://localhost:8000
 ```

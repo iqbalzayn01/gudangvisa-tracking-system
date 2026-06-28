@@ -47,6 +47,7 @@ export const visaTypeEnum = pgEnum('visa_type', [
 ]);
 
 export const documentTypeEnum = pgEnum('document_type', [
+  // Core / general documents
   'passport',
   'photo',
   'sponsor_letter',
@@ -54,12 +55,31 @@ export const documentTypeEnum = pgEnum('document_type', [
   'bank_statement',
   'rejection_letter',
   'final_evisa',
+  // KITAS professional / legal documents (Indonesian immigration workflow)
+  'marriage_certificate', // KITAS spouse
+  'insurance_certificate', // KITAS retirement
+  'rptka', // Rencana Penggunaan Tenaga Kerja Asing (foreign worker placement plan)
+  'notifikasi', // Notifikasi / IMTA work-permit notification (Kemnaker)
+  'vitas_telex', // VITAS / Telex visa (entry visa)
+  'dkptka_payment', // DKPTKA / DPKK compensation fund payment proof
+  'domicile_certificate', // SKTT / lapor diri (proof of domicile)
+  'diploma_certificate', // Ijazah / qualification certificate
+  'cv_resume', // Curriculum vitae
+  'kitas_card', // Issued KITAS / ITAS card
+  'other',
 ]);
 
 export const documentStatusEnum = pgEnum('document_status', [
   'pending',
   'verified',
   'rejected',
+]);
+
+export const priorityEnum = pgEnum('priority', [
+  'low',
+  'medium',
+  'high',
+  'urgent',
 ]);
 
 export const biometricStatusEnum = pgEnum('biometric_status', [
@@ -121,6 +141,7 @@ export const applications = pgTable(
     ),
     visaType: visaTypeEnum('visa_type').notNull(),
     status: applicationStatusEnum('status').default('draft').notNull(),
+    priority: priorityEnum('priority').default('medium').notNull(),
     progressPercentage: integer('progress_percentage').default(0).notNull(),
     notes: text('notes'),
 
@@ -166,6 +187,9 @@ export const applicationDocuments = pgTable('application_documents', {
   fileName: varchar('file_name', { length: 255 }).notNull(),
   filePath: varchar('file_path', { length: 500 }).notNull(),
   status: documentStatusEnum('status').default('pending').notNull(),
+  // Validity tracking for expiry monitoring (passport, KITAS, VITAS, RPTKA, Notifikasi…)
+  issuedDate: date('issued_date'),
+  expiryDate: date('expiry_date'),
   rejectionReason: text('rejection_reason'),
   verifiedByStaffId: uuid('verified_by_staff_id').references(
     () => staffAccounts.id,

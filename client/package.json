@@ -1,6 +1,6 @@
 {
   "name": "gudangvisa-frontend",
-  "version": "1.6.3",
+  "version": "1.7.0",
   "private": true,
   "description": "Document monitoring & tracking system for VISA and KITAS",
   "type": "module",

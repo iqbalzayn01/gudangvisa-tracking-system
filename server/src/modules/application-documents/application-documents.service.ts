@@ -41,7 +41,21 @@ export class ApplicationDocumentsService {
       fileName: data.fileName,
       filePath: data.storagePath,
       status: 'pending',
+      issuedDate: data.issuedDate ?? null,
+      expiryDate: data.expiryDate ?? null,
     });
+  }
+
+  /**
+   * List documents whose validity expires within the next `days` (or are
+   * already expired). Powers the dashboard "Expiring Documents" monitoring
+   * widget. Capped to a sane window to avoid scanning unbounded ranges.
+   */
+  async getExpiringDocuments(days: number) {
+    const window = Number.isFinite(days)
+      ? Math.min(Math.max(Math.trunc(days), 1), 365)
+      : 30;
+    return await this.repository.findExpiringWithin(window);
   }
 
   async getDocumentsByApplication(applicationId: string) {

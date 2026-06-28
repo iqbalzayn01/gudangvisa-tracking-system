@@ -76,6 +76,25 @@ export class ApplicationDocumentsController {
     }
   };
 
+  getExpiring = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const days = Number.parseInt(String(req.query.days ?? '30'), 10);
+      const docs = await this.service.getExpiringDocuments(
+        Number.isNaN(days) ? 30 : days,
+      );
+
+      const response: ApiResponse = {
+        success: true,
+        message: 'Expiring documents retrieved successfully.',
+        data: docs,
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   verifyDocument = async (
     req: Request<{ id: string }>,
     res: Response,

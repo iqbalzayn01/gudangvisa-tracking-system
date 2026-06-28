@@ -40,6 +40,9 @@ router.post(
   controller.addDocument,
 );
 
+// Documents expiring soon (monitoring dashboard) — must precede param routes
+router.get('/expiring', authorizeRoles('admin', 'staff'), controller.getExpiring);
+
 // Get all documents for an application
 router.get(
   '/application/:applicationId',

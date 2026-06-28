@@ -9,6 +9,7 @@ export const createApplicationSchema = z.object({
     'KITAS_INVESTOR',
     'KITAS_RETIREMENT',
   ]),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   notes: z.string().optional(),
 });
 

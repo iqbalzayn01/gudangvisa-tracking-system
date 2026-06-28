@@ -12,6 +12,7 @@ import StatusStepper from '../components/StatusStepper.vue';
 import TrackingTimeline from '../components/TrackingTimeline.vue';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import { formatDate, formatDateTime } from '../utils/formatters';
+import { visaTypeLabel } from '../utils/labels';
 
 const router = useRouter();
 const clientAuth = useClientAuthStore();
@@ -28,9 +29,9 @@ const downloadingId = ref<string | null>(null);
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-/** Documents ready for the client to download (verified / approved). */
+/** Documents ready for the client to download (verified by staff). */
 function downloadableDocs(app: Application): ApplicationDocument[] {
-  return (app.documents ?? []).filter((d) => d.status === 'APPROVED');
+  return (app.documents ?? []).filter((d) => d.status === 'verified');
 }
 
 async function load(silent = false): Promise<void> {
@@ -230,7 +231,7 @@ onUnmounted(() => {
                 {{ app.trackingCode }}
               </p>
               <h2 class="text-lg font-semibold text-heading">
-                {{ app.visaType ?? app.serviceType }}
+                {{ visaTypeLabel(app.visaType) }}
               </h2>
               <p class="text-xs text-subtle mt-0.5">
                 Submitted {{ formatDate(app.createdAt) }}

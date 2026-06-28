@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { getAllApplications } from '../api/applications.api';
-import type { Application, DocStatus, Priority } from '../types';
+import type { Application, ApplicationStatus, Priority } from '../types';
+import { phaseOf, type StatusPhase } from '../utils/labels';
 
 /**
  * Server-backed application store.
@@ -27,7 +28,7 @@ export const useApplicationStore = defineStore('applications', () => {
   const totalCount = computed(() => applications.value.length);
 
   const countByStatus = computed(() => {
-    const counts: Partial<Record<DocStatus, number>> = {};
+    const counts: Partial<Record<ApplicationStatus, number>> = {};
     for (const application of applications.value) {
       counts[application.currentStatus] =
         (counts[application.currentStatus] ?? 0) + 1;
@@ -35,10 +36,20 @@ export const useApplicationStore = defineStore('applications', () => {
     return counts;
   });
 
+  /** Application counts grouped by KITAS lifecycle phase (dashboard chart). */
+  const countByPhase = computed(() => {
+    const counts: Partial<Record<StatusPhase, number>> = {};
+    for (const application of applications.value) {
+      const phase = phaseOf(application.currentStatus);
+      counts[phase] = (counts[phase] ?? 0) + 1;
+    }
+    return counts;
+  });
+
   const countByPriority = computed(() => {
     const counts: Partial<Record<Priority, number>> = {};
     for (const application of applications.value) {
-      const p = application.priority ?? 'MEDIUM';
+      const p = application.priority ?? 'medium';
       counts[p] = (counts[p] ?? 0) + 1;
     }
     return counts;
@@ -114,7 +125,7 @@ export const useApplicationStore = defineStore('applications', () => {
   }
 
   /** Optimistic: update an application's status locally. */
-  function updateStatusLocal(id: string, status: DocStatus): void {
+  function updateStatusLocal(id: string, status: ApplicationStatus): void {
     const application = applications.value.find((a) => a.id === id);
     if (application) {
       application.currentStatus = status;
@@ -131,6 +142,7 @@ export const useApplicationStore = defineStore('applications', () => {
     sortedApplications,
     totalCount,
     countByStatus,
+    countByPhase,
     countByPriority,
     newToday,
     newThisMonth,
