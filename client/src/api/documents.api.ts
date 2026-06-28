@@ -42,10 +42,7 @@ export async function addDocument(
     issuedDate: payload.issuedDate,
     expiryDate: payload.expiryDate,
   });
-  return {
-    ...mapDoc(data.data),
-    isPublic: payload.isPublic ?? false,
-  };
+  return mapDoc(data.data);
 }
 
 export async function getDocumentsByApplication(
