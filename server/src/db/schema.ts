@@ -11,8 +11,9 @@ import {
   time,
   jsonb,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // ==========================================
 // ENUM DEFINITIONS (PostgreSQL Native Enums)
@@ -109,18 +110,29 @@ export const staffAccounts = pgTable('staff_accounts', {
 // ==========================================
 // 2. CLIENT_ACCOUNTS (Pelanggan / External)
 // ==========================================
-export const clientAccounts = pgTable('client_accounts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: varchar('email', { length: 255 }).unique().notNull(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-  fullName: varchar('full_name', { length: 255 }).notNull(),
-  passportNumber: varchar('passport_number', { length: 50 }).notNull(),
-  nationality: varchar('nationality', { length: 100 }).notNull(),
-  phone: varchar('phone', { length: 50 }),
-  isActive: boolean('is_active').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+export const clientAccounts = pgTable(
+  'client_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: varchar('email', { length: 255 }).unique().notNull(),
+    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+    fullName: varchar('full_name', { length: 255 }).notNull(),
+    passportNumber: varchar('passport_number', { length: 50 }).notNull(),
+    nationality: varchar('nationality', { length: 100 }).notNull(),
+    phone: varchar('phone', { length: 50 }),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    // Case-insensitive, trimmed uniqueness on full name. Backstops the
+    // app-level check in client-accounts.service.ts and indexes the exact
+    // expression used by ClientAccountsRepository.findByFullName().
+    fullNameLowerUnique: uniqueIndex('client_accounts_full_name_lower_unique').on(
+      sql`lower(trim(${table.fullName}))`,
+    ),
+  }),
+);
 
 // ==========================================
 // 3. APPLICATIONS (Visa Tracking - Merged Biometric + JSONB Checklist)
@@ -168,9 +180,7 @@ export const applications = pgTable(
   },
   (table) => ({
     clientIdIdx: index('applications_client_id_idx').on(table.clientId),
-    referenceNumberIdx: index('applications_reference_number_idx').on(
-      table.referenceNumber,
-    ),
+    // reference_number needs no extra index — .unique() already creates one.
     statusIdx: index('applications_status_idx').on(table.status),
   }),
 );
@@ -178,82 +188,121 @@ export const applications = pgTable(
 // ==========================================
 // 4. APPLICATION_DOCUMENTS
 // ==========================================
-export const applicationDocuments = pgTable('application_documents', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  applicationId: uuid('application_id')
-    .references(() => applications.id, { onDelete: 'cascade' })
-    .notNull(),
-  documentType: documentTypeEnum('document_type').notNull(),
-  fileName: varchar('file_name', { length: 255 }).notNull(),
-  filePath: varchar('file_path', { length: 500 }).notNull(),
-  status: documentStatusEnum('status').default('pending').notNull(),
-  // Validity tracking for expiry monitoring (passport, KITAS, VITAS, RPTKA, Notifikasi…)
-  issuedDate: date('issued_date'),
-  expiryDate: date('expiry_date'),
-  rejectionReason: text('rejection_reason'),
-  verifiedByStaffId: uuid('verified_by_staff_id').references(
-    () => staffAccounts.id,
-    { onDelete: 'set null' },
-  ),
-  verifiedAt: timestamp('verified_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+export const applicationDocuments = pgTable(
+  'application_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicationId: uuid('application_id')
+      .references(() => applications.id, { onDelete: 'cascade' })
+      .notNull(),
+    documentType: documentTypeEnum('document_type').notNull(),
+    fileName: varchar('file_name', { length: 255 }).notNull(),
+    filePath: varchar('file_path', { length: 500 }).notNull(),
+    status: documentStatusEnum('status').default('pending').notNull(),
+    // Validity tracking for expiry monitoring (passport, KITAS, VITAS, RPTKA, Notifikasi…)
+    issuedDate: date('issued_date'),
+    expiryDate: date('expiry_date'),
+    rejectionReason: text('rejection_reason'),
+    verifiedByStaffId: uuid('verified_by_staff_id').references(
+      () => staffAccounts.id,
+      { onDelete: 'set null' },
+    ),
+    verifiedAt: timestamp('verified_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    applicationIdIdx: index('application_documents_application_id_idx').on(
+      table.applicationId,
+    ),
+    expiryDateIdx: index('application_documents_expiry_date_idx').on(
+      table.expiryDate,
+    ),
+  }),
+);
 
 // ==========================================
 // 5. TRACKING_HISTORY
 // ==========================================
-export const trackingHistory = pgTable('tracking_history', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  applicationId: uuid('application_id')
-    .references(() => applications.id, { onDelete: 'cascade' })
-    .notNull(),
-  fromStatus: applicationStatusEnum('from_status'),
-  toStatus: applicationStatusEnum('to_status').notNull(),
-  description: text('description').notNull(),
-  changedByStaffId: uuid('changed_by_staff_id').references(
-    () => staffAccounts.id,
-    { onDelete: 'set null' },
-  ),
-  isVisibleToClient: boolean('is_visible_to_client').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const trackingHistory = pgTable(
+  'tracking_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicationId: uuid('application_id')
+      .references(() => applications.id, { onDelete: 'cascade' })
+      .notNull(),
+    fromStatus: applicationStatusEnum('from_status'),
+    toStatus: applicationStatusEnum('to_status').notNull(),
+    description: text('description').notNull(),
+    changedByStaffId: uuid('changed_by_staff_id').references(
+      () => staffAccounts.id,
+      { onDelete: 'set null' },
+    ),
+    isVisibleToClient: boolean('is_visible_to_client').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    applicationIdIdx: index('tracking_history_application_id_idx').on(
+      table.applicationId,
+    ),
+  }),
+);
 
 // ==========================================
 // 6. NOTIFICATIONS
 // ==========================================
-export const notifications = pgTable('notifications', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  clientId: uuid('client_id')
-    .references(() => clientAccounts.id, { onDelete: 'cascade' })
-    .notNull(),
-  applicationId: uuid('application_id')
-    .references(() => applications.id, { onDelete: 'cascade' })
-    .notNull(),
-  title: varchar('title', { length: 255 }).notNull(),
-  message: text('message').notNull(),
-  isRead: boolean('is_read').default(false).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .references(() => clientAccounts.id, { onDelete: 'cascade' })
+      .notNull(),
+    applicationId: uuid('application_id')
+      .references(() => applications.id, { onDelete: 'cascade' })
+      .notNull(),
+    title: varchar('title', { length: 255 }).notNull(),
+    message: text('message').notNull(),
+    isRead: boolean('is_read').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    clientIdIdx: index('notifications_client_id_idx').on(table.clientId),
+    applicationIdIdx: index('notifications_application_id_idx').on(
+      table.applicationId,
+    ),
+  }),
+);
 
 // ==========================================
 // 7. AUDIT_LOGS
 // ==========================================
-export const auditLogs = pgTable('audit_logs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  staffId: uuid('staff_id').references(() => staffAccounts.id, {
-    onDelete: 'set null',
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    staffId: uuid('staff_id').references(() => staffAccounts.id, {
+      onDelete: 'set null',
+    }),
+    applicationId: uuid('application_id').references(() => applications.id, {
+      onDelete: 'set null',
+    }),
+    action: varchar('action', { length: 100 }).notNull(),
+    entityType: varchar('entity_type', { length: 100 }).notNull(),
+    oldValues: jsonb('old_values'),
+    newValues: jsonb('new_values'),
+    ipAddress: varchar('ip_address', { length: 45 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    // The admin viewer always sorts by created_at and filters by action/entity.
+    createdAtIdx: index('audit_logs_created_at_idx').on(table.createdAt),
+    actionEntityIdx: index('audit_logs_action_entity_type_idx').on(
+      table.action,
+      table.entityType,
+    ),
   }),
-  applicationId: uuid('application_id').references(() => applications.id, {
-    onDelete: 'set null',
-  }),
-  action: varchar('action', { length: 100 }).notNull(),
-  entityType: varchar('entity_type', { length: 100 }).notNull(),
-  oldValues: jsonb('old_values'),
-  newValues: jsonb('new_values'),
-  ipAddress: varchar('ip_address', { length: 45 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+);
 
 // ==========================================
 // DRIZZLE RELATIONS

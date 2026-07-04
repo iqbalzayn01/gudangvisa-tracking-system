@@ -1,95 +1,50 @@
-import { Request, Response, NextFunction } from 'express';
 import { StaffAccountsService } from './staff-accounts.service.js';
-import type { ApiResponse } from '../../types/index.js';
-import { AppError } from '../../utils/AppError.js';
+import {
+  asyncHandler,
+  sendSuccess,
+  getStaffUser,
+} from '../../utils/handler.js';
 import { recordAudit } from '../../utils/audit.js';
 
 export class StaffAccountsController {
   private service = new StaffAccountsService();
 
-  getMe = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.staffUser) {
-        throw new AppError(401, 'Staff user not found in request.');
-      }
+  getMe = asyncHandler(async (req, res) => {
+    const staff = getStaffUser(req);
+    sendSuccess(res, 200, 'Staff profile retrieved successfully.', {
+      id: staff.id,
+      fullName: staff.fullName,
+      email: staff.email,
+      role: staff.role,
+    });
+  });
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Staff profile retrieved successfully.',
-        data: {
-          id: req.staffUser.id,
-          fullName: req.staffUser.fullName,
-          email: req.staffUser.email,
-          role: req.staffUser.role,
-        },
-      };
+  createStaff = asyncHandler(async (req, res) => {
+    const newStaff = await this.service.createNewStaff(req.body);
 
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    await recordAudit(req, {
+      action: 'CREATE',
+      entityType: 'staff',
+      newValues: { email: req.body.email, role: req.body.role },
+    });
 
-  createStaff = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const newStaff = await this.service.createNewStaff(req.body);
+    sendSuccess(res, 201, 'New staff member added successfully!', newStaff);
+  });
 
-      await recordAudit(req, {
-        action: 'CREATE',
-        entityType: 'staff',
-        newValues: { email: req.body.email, role: req.body.role },
-      });
+  getAllStaff = asyncHandler(async (_req, res) => {
+    const staffList = await this.service.getAllStaff();
+    sendSuccess(res, 200, 'Staff list retrieved successfully.', staffList);
+  });
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'New staff member added successfully!',
-        data: newStaff,
-      };
+  deleteStaff = asyncHandler<{ id: string }>(async (req, res) => {
+    await this.service.removeStaff(req.params.id);
 
-      res.status(201).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    await recordAudit(req, {
+      action: 'DELETE',
+      entityType: 'staff',
+      oldValues: { staffId: req.params.id },
+    });
 
-  getAllStaff = async (_req: Request, res: Response, next: NextFunction) => {
-    try {
-      const staffList = await this.service.getAllStaff();
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Staff list retrieved successfully.',
-        data: staffList,
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  deleteStaff = async (
-    req: Request<{ id: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      await this.service.removeStaff(req.params.id);
-
-      await recordAudit(req, {
-        action: 'DELETE',
-        entityType: 'staff',
-        oldValues: { staffId: req.params.id },
-      });
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Staff member deleted successfully.',
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    sendSuccess(res, 200, 'Staff member deleted successfully.');
+  });
 }

@@ -1,5 +1,7 @@
 import { ApplicationsRepository } from './applications.repository.js';
+import type { NotificationPayload } from './applications.repository.js';
 import { AppError } from '../../utils/AppError.js';
+import { deleteStorageFiles } from '../../utils/storage.js';
 import type {
   CreateApplicationInput,
   UpdateStatusInput,
@@ -50,6 +52,58 @@ const DEFAULT_CHECKLIST: Record<string, ChecklistItem[]> = {
   ],
 };
 
+type ApplicationStatus = UpdateStatusInput['status'];
+
+/**
+ * Pipeline progress per status. Terminal-failure and hold statuses
+ * (rejected / cancelled / on_hold) are absent on purpose: they freeze the
+ * last reached progress instead of resetting it.
+ */
+const STATUS_PROGRESS: Partial<Record<ApplicationStatus, number>> = {
+  draft: 0,
+  document_collection: 10,
+  document_verification: 20,
+  document_revision: 25,
+  submission_to_immigration: 35,
+  immigration_review: 45,
+  biometric_scheduled: 55,
+  biometric_completed: 65,
+  immigration_processing: 75,
+  approval_pending: 85,
+  approved: 90,
+  evisa_issued: 95,
+  completed: 100,
+};
+
+/** Human-readable status labels used in client notifications. */
+const STATUS_LABELS: Record<ApplicationStatus, string> = {
+  draft: 'Draft',
+  document_collection: 'Document Collection',
+  document_verification: 'Document Verification',
+  document_revision: 'Document Revision',
+  submission_to_immigration: 'Submitted to Immigration',
+  immigration_review: 'Immigration Review',
+  biometric_scheduled: 'Biometric Scheduled',
+  biometric_completed: 'Biometric Completed',
+  immigration_processing: 'Immigration Processing',
+  approval_pending: 'Approval Pending',
+  approved: 'Approved',
+  evisa_issued: 'e-Visa Issued',
+  completed: 'Completed',
+  rejected: 'Rejected',
+  cancelled: 'Cancelled',
+  on_hold: 'On Hold',
+};
+
+const MAX_REFERENCE_ATTEMPTS = 3;
+
+/** Postgres unique-violation (SQLSTATE 23505), directly or via error.cause. */
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const err = error as { code?: string; cause?: { code?: string } };
+  return err.code === '23505' || err.cause?.code === '23505';
+}
+
 export class ApplicationsService {
   private repository = new ApplicationsRepository();
 
@@ -63,20 +117,30 @@ export class ApplicationsService {
   }
 
   async createApplication(data: CreateApplicationInput, staffId: string) {
-    const referenceNumber = this.generateReferenceNumber();
     const checklist = DEFAULT_CHECKLIST[data.visaType] ?? [];
 
-    return await this.repository.create({
-      referenceNumber,
-      clientId: data.clientId,
-      assignedStaffId: staffId,
-      visaType: data.visaType,
-      status: 'draft',
-      priority: data.priority ?? 'medium',
-      progressPercentage: 0,
-      notes: data.notes ?? null,
-      checklist,
-    });
+    // The random reference can collide (unique column) — retry with a fresh
+    // number instead of surfacing a 500.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.repository.create({
+          referenceNumber: this.generateReferenceNumber(),
+          clientId: data.clientId,
+          assignedStaffId: staffId,
+          visaType: data.visaType,
+          status: 'draft',
+          priority: data.priority ?? 'medium',
+          progressPercentage: 0,
+          notes: data.notes ?? null,
+          checklist,
+        });
+      } catch (error) {
+        if (attempt < MAX_REFERENCE_ATTEMPTS && isUniqueViolation(error)) {
+          continue;
+        }
+        throw error;
+      }
+    }
   }
 
   async getAllApplications() {
@@ -104,14 +168,20 @@ export class ApplicationsService {
       );
     }
 
-    return await this.repository.updateStatus(
-      appId,
-      app.status,
-      data.status,
-      data.description,
-      data.isVisibleToClient,
+    const progressPercentage = STATUS_PROGRESS[data.status];
+
+    return await this.repository.updateStatus(appId, {
+      fromStatus: app.status,
+      toStatus: data.status,
+      description: data.description,
+      isVisibleToClient: data.isVisibleToClient,
       staffId,
-    );
+      ...(progressPercentage !== undefined && { progressPercentage }),
+      notification: {
+        title: `Application update: ${STATUS_LABELS[data.status]}`,
+        message: data.description,
+      },
+    });
   }
 
   async updateBiometricSchedule(
@@ -122,6 +192,8 @@ export class ApplicationsService {
     const app = await this.repository.findById(appId);
     if (!app) throw new AppError(404, 'Application not found.');
 
+    const notification = this.buildBiometricNotification(data);
+
     return await this.repository.updateBiometric(appId, {
       biometricStatus: data.biometricStatus,
       biometricDate: data.biometricDate ?? null,
@@ -131,7 +203,35 @@ export class ApplicationsService {
       fieldAssistantPhone: data.fieldAssistantPhone ?? null,
       biometricScheduledBy: staffId,
       biometricScheduledAt: new Date(),
+      ...(notification && { notification }),
     });
+  }
+
+  /** Client notification for appointment-relevant biometric changes only. */
+  private buildBiometricNotification(
+    data: UpdateBiometricInput,
+  ): NotificationPayload | null {
+    const titles: Partial<Record<UpdateBiometricInput['biometricStatus'], string>> = {
+      scheduled: 'Biometric appointment scheduled',
+      rescheduled: 'Biometric appointment rescheduled',
+      cancelled: 'Biometric appointment cancelled',
+    };
+    const title = titles[data.biometricStatus];
+    if (!title) return null;
+
+    if (data.biometricStatus === 'cancelled') {
+      return { title, message: 'Your biometric appointment has been cancelled.' };
+    }
+
+    const parts = [
+      data.biometricDate && `on ${data.biometricDate}`,
+      data.biometricTime && `at ${data.biometricTime}`,
+      data.biometricLocation && `— ${data.biometricLocation}`,
+    ].filter(Boolean);
+    return {
+      title,
+      message: `Your biometric appointment is ${parts.length ? parts.join(' ') : 'being arranged'}.`,
+    };
   }
 
   async toggleChecklistItem(
@@ -140,23 +240,12 @@ export class ApplicationsService {
     isChecked: boolean,
     staffId: string,
   ) {
-    const app = await this.repository.findById(appId);
-    if (!app) throw new AppError(404, 'Application not found.');
-
-    const checklist = (app.checklist ?? []) as ChecklistItem[];
-
-    if (itemIndex < 0 || itemIndex >= checklist.length) {
-      throw new AppError(400, 'Invalid checklist item index.');
-    }
-
-    const item = checklist[itemIndex];
-    if (!item) throw new AppError(400, 'Checklist item not found.');
-
-    item.isChecked = isChecked;
-    item.checkedAt = isChecked ? new Date().toISOString() : undefined;
-    item.checkedByStaffId = isChecked ? staffId : undefined;
-
-    return await this.repository.updateChecklist(appId, checklist);
+    return await this.repository.updateChecklistItem(
+      appId,
+      itemIndex,
+      isChecked,
+      staffId,
+    );
   }
 
   async getApplicationsByClientId(clientId: string) {
@@ -164,6 +253,9 @@ export class ApplicationsService {
   }
 
   async deleteApplication(appId: string) {
-    return await this.repository.deleteById(appId);
+    const { deleted, filePaths } = await this.repository.deleteById(appId);
+    // DB rows are gone; bucket cleanup is best-effort (logged, never thrown).
+    await deleteStorageFiles(filePaths);
+    return deleted;
   }
 }

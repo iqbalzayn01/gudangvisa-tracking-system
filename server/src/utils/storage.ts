@@ -56,7 +56,9 @@ export async function createSignedUploadUrl(storagePath: string) {
     .createSignedUploadUrl(storagePath);
 
   if (error) {
-    throw new AppError(500, `Storage error: ${error.message}`);
+    // Raw Supabase messages can expose internals; log them, return a generic error.
+    console.error('[storage] createSignedUploadUrl failed:', error.message);
+    throw new AppError(500, 'Failed to generate upload URL.');
   }
 
   return {
@@ -104,10 +106,8 @@ export async function createSignedDownloadUrl(
     .createSignedUrl(storagePath, SIGNED_URL_EXPIRY);
 
   if (error) {
-    throw new AppError(
-      500,
-      `Failed to generate download URL: ${error.message}`,
-    );
+    console.error('[storage] createSignedUrl failed:', error.message);
+    throw new AppError(500, 'Failed to generate download URL.');
   }
 
   return data.signedUrl;
@@ -127,9 +127,27 @@ export async function deleteStorageFile(
     .remove([storagePath]);
 
   if (error) {
-    throw new AppError(
-      500,
-      `Failed to delete file from storage: ${error.message}`,
+    console.error('[storage] remove failed:', error.message);
+    throw new AppError(500, 'Failed to delete file from storage.');
+  }
+}
+
+/**
+ * Best-effort bulk cleanup of storage files after a cascade delete (application
+ * or client removal). Failures are logged, never thrown — the DB rows are
+ * already gone and the request must not fail over orphaned blobs.
+ */
+export async function deleteStorageFiles(
+  storagePaths: Array<string | null>,
+): Promise<void> {
+  const paths = storagePaths.filter((p): p is string => Boolean(p));
+  if (paths.length === 0) return;
+
+  const { error } = await supabase.storage.from(BUCKET_NAME).remove(paths);
+  if (error) {
+    console.error(
+      `[storage] cleanup of ${paths.length} file(s) failed:`,
+      error.message,
     );
   }
 }

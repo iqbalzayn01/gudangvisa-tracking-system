@@ -6,10 +6,11 @@ import { useApplicationStore } from '../stores/application.store';
 import type { BiometricSchedule, BiometricStatus } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import FilterSelect from '../components/FilterSelect.vue';
+import { formatTime } from '../utils/formatters';
 import {
   biometricStatusLabel,
   biometricStatusClasses,
-} from '../utils/formatters';
+} from '../utils/labels';
 
 const router = useRouter();
 const applicationStore = useApplicationStore();
@@ -103,12 +104,6 @@ function formatDay(date: string | null): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-function formatTime(time: string | null): string {
-  if (!time) return '';
-  // Backend stores HH:MM:SS — show HH:MM.
-  return time.slice(0, 5);
 }
 
 onMounted(() => {

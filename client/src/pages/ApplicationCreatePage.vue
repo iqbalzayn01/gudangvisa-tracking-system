@@ -48,9 +48,7 @@ async function handleSubmit(): Promise<void> {
     created.value = application;
     notify.success('Application created successfully!');
   } catch (err) {
-    notify.error(
-      err instanceof Error ? err.message : 'Failed to create application',
-    );
+    notify.fromError(err, 'Failed to create application');
   } finally {
     isSubmitting.value = false;
   }

@@ -1,64 +1,47 @@
-import { Request, Response, NextFunction } from 'express';
 import { AuthClientService } from './auth-client.service.js';
 import {
   REFRESH_COOKIE_NAME,
-  REFRESH_COOKIE_OPTIONS,
+  setRefreshCookie,
+  clearRefreshCookie,
 } from '../../utils/jwt.js';
+import { asyncHandler, sendSuccess } from '../../utils/handler.js';
+import { recordAudit } from '../../utils/audit.js';
 
 export class AuthClientController {
   private service = new AuthClientService();
 
-  login = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { email, password } = req.body;
-      const result = await this.service.login(email, password);
+  login = asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+    const result = await this.service.login(email, password);
 
-      res.cookie(
-        REFRESH_COOKIE_NAME,
-        result.refreshToken,
-        REFRESH_COOKIE_OPTIONS,
-      );
-
-      res.status(200).json({
-        success: true,
-        message: 'Login successful.',
-        data: {
-          user: result.user,
-          accessToken: result.accessToken,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  refresh = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME] as
-        | string
-        | undefined;
-      const result = await this.service.refreshAccessToken(refreshToken);
-
-      res.status(200).json({
-        success: true,
-        data: { accessToken: result.accessToken },
-      });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  logout = async (_req: Request, res: Response, _next: NextFunction) => {
-    res.clearCookie(REFRESH_COOKIE_NAME, {
-      httpOnly: true,
-      secure: REFRESH_COOKIE_OPTIONS.secure,
-      sameSite: REFRESH_COOKIE_OPTIONS.sameSite,
-      path: REFRESH_COOKIE_OPTIONS.path,
+    // Client logins land in the audit trail too (staffId stays null).
+    await recordAudit(req, {
+      action: 'LOGIN',
+      entityType: 'client',
+      newValues: { clientId: result.user.id, email: result.user.email },
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'Logged out successfully.',
+    setRefreshCookie(res, result.refreshToken);
+    sendSuccess(res, 200, 'Login successful.', {
+      user: result.user,
+      accessToken: result.accessToken,
     });
-  };
+  });
+
+  refresh = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME] as
+      | string
+      | undefined;
+    const result = await this.service.refreshAccessToken(refreshToken);
+
+    setRefreshCookie(res, result.refreshToken);
+    sendSuccess(res, 200, 'Token refreshed.', {
+      accessToken: result.accessToken,
+    });
+  });
+
+  logout = asyncHandler(async (_req, res) => {
+    clearRefreshCookie(res);
+    sendSuccess(res, 200, 'Logged out successfully.');
+  });
 }

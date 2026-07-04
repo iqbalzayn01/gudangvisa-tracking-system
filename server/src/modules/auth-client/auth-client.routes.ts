@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { AuthClientController } from './auth-client.controller.js';
 import { validate } from '../../middlewares/validate.middleware.js';
-import { clientLoginSchema } from './auth-client.validation.js';
+import { authLimiter } from '../../middlewares/rate-limit.middleware.js';
+import { loginSchema } from '../../utils/validation.js';
 
 const router = Router();
 const controller = new AuthClientController();
 
-// POST /api/auth/client/login
-router.post('/login', validate(clientLoginSchema), controller.login);
+// POST /api/auth/client/login (credential attempts are rate-limited)
+router.post('/login', authLimiter, validate(loginSchema), controller.login);
 
 // POST /api/auth/client/refresh
 router.post('/refresh', controller.refresh);

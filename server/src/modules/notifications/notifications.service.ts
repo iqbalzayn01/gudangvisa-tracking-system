@@ -9,14 +9,15 @@ export class NotificationsService {
   }
 
   async markAsRead(notificationId: string, clientId: string) {
+    const updated = await this.repository.markAsRead(notificationId, clientId);
+    if (updated) return updated;
+
+    // Distinguish "doesn't exist" from "not yours" only after the atomic
+    // update found nothing.
     const notification = await this.repository.findById(notificationId);
     if (!notification) {
       throw new AppError(404, 'Notification not found.');
     }
-    if (notification.clientId !== clientId) {
-      throw new AppError(403, 'Access denied: This notification is not yours.');
-    }
-
-    return await this.repository.markAsRead(notificationId);
+    throw new AppError(403, 'Access denied: This notification is not yours.');
   }
 }

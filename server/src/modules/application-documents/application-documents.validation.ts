@@ -47,5 +47,18 @@ export const verifyDocumentSchema = z.object({
   rejectionReason: z.string().optional(),
 });
 
+/** Mirrors the storage-level restrictions (2 MB, JPG/PNG/PDF). */
+export const uploadUrlSchema = z.object({
+  fileName: z.string().min(1, 'File name is required.').max(255),
+  contentType: z.enum(['image/jpeg', 'image/png', 'application/pdf']),
+  fileSize: z
+    .number()
+    .int()
+    .positive()
+    .max(2 * 1024 * 1024, 'File size exceeds the maximum limit of 2 MB.')
+    .optional(),
+});
+
 export type AddDocumentInput = z.infer<typeof addDocumentSchema>;
 export type VerifyDocumentInput = z.infer<typeof verifyDocumentSchema>;
+export type UploadUrlInput = z.infer<typeof uploadUrlSchema>;

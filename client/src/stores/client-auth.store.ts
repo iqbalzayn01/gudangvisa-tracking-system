@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { clientLogin, clientLogout } from '../api/portal.api';
+import { registerTokenSetter } from '../api/token-sync';
 
 interface ClientUser {
   fullName: string;
@@ -16,6 +17,11 @@ export const useClientAuthStore = defineStore('client-auth', () => {
   const user = ref<ClientUser | null>(null);
   const token = ref<string | null>(null);
   const isLoading = ref(false);
+
+  // Keep this store's token in sync with silent refreshes from the interceptor.
+  registerTokenSetter('client_auth_token', (t) => {
+    token.value = t;
+  });
 
   const isAuthenticated = computed(() => !!token.value);
 

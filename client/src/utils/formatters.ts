@@ -1,5 +1,3 @@
-import type { BiometricStatus } from '../types';
-
 /**
  * Format an ISO date string into a human-readable format.
  */
@@ -33,6 +31,47 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Trim a `HH:MM:SS` (or `HH:MM`) time string down to `HH:MM`.
+ * Returns the input unchanged if it doesn't look like a time.
+ */
+export function formatTime(time?: string | null): string {
+  if (!time) return '';
+  const [h, m] = time.split(':');
+  return m !== undefined ? `${h}:${m}` : time;
+}
+
+// ─── Search highlighting ─────────────────────────────────────────────────────
+
+/** Escape HTML special characters so a string is safe to inject via `v-html`. */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * HTML-escape `text`, then wrap case-insensitive matches of `query` in a
+ * `<mark class="hl">` for search highlighting. The escape happens BEFORE
+ * wrapping, so the result is safe to render with `v-html` even when `text`
+ * comes from user-controlled data (client name, email, tracking code, …).
+ */
+export function highlight(text: string, query: string): string {
+  const safe = escapeHtml(text);
+  const q = query.trim();
+  if (!q) return safe;
+  // Escape the query the same way, then neutralize regex metacharacters, so it
+  // matches against the already-escaped text.
+  const pattern = escapeHtml(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return safe.replace(
+    new RegExp(`(${pattern})`, 'gi'),
+    '<mark class="hl">$1</mark>',
+  );
+}
+
 // ─── Document validity / expiry monitoring ───────────────────────────────────
 
 /** Whole days until `iso` (negative if already past). */
@@ -59,30 +98,4 @@ export function expiryClasses(state: ExpiryState): string {
     expired: 'text-rose-400',
   };
   return map[state];
-}
-
-// ─── Biometric status ────────────────────────────────────────────────────────
-
-export function biometricStatusLabel(status: BiometricStatus): string {
-  const map: Record<BiometricStatus, string> = {
-    not_scheduled: 'Not Scheduled',
-    scheduled: 'Scheduled',
-    completed: 'Completed',
-    rescheduled: 'Rescheduled',
-    cancelled: 'Cancelled',
-    no_show: 'No Show',
-  };
-  return map[status] ?? status;
-}
-
-export function biometricStatusClasses(status: BiometricStatus): string {
-  const map: Record<BiometricStatus, string> = {
-    not_scheduled: 'bg-slate-500/15 text-slate-400',
-    scheduled: 'bg-sky-500/15 text-sky-400',
-    completed: 'bg-emerald-500/15 text-emerald-400',
-    rescheduled: 'bg-amber-500/15 text-amber-400',
-    cancelled: 'bg-red-500/15 text-red-400',
-    no_show: 'bg-rose-500/15 text-rose-400',
-  };
-  return map[status] ?? map.not_scheduled;
 }

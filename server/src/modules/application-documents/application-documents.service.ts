@@ -101,7 +101,11 @@ export class ApplicationDocumentsService {
       throw new AppError(404, 'Document file is not available for download.');
     }
 
-    return { fileName: doc.fileName, downloadUrl };
+    return {
+      fileName: doc.fileName,
+      downloadUrl,
+      applicationId: doc.applicationId,
+    };
   }
 
   async removeDocument(id: string) {

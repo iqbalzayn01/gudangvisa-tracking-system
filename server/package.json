@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "seed": "tsx src/scripts/seed.ts",
+    "check:dups": "tsx src/scripts/find-duplicate-clients.ts",
+    "cleanup:dups": "tsx src/scripts/cleanup-duplicate-clients.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
     "db:generate": "drizzle-kit generate",

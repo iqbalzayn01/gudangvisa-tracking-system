@@ -45,8 +45,15 @@ export const updateBiometricSchema = z.object({
     'cancelled',
     'no_show',
   ]),
-  biometricDate: z.string().optional(),
-  biometricTime: z.string().optional(),
+  // Column types are DATE/TIME — malformed strings must 400 here, not 500 in the DB.
+  biometricDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format.')
+    .optional(),
+  biometricTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Time must be in HH:MM format.')
+    .optional(),
   biometricLocation: z.string().optional(),
   fieldAssistantName: z.string().optional(),
   fieldAssistantPhone: z.string().optional(),

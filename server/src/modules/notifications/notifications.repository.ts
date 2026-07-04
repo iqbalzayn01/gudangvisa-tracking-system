@@ -1,7 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { notifications } from '../../db/schema.js';
-import { AppError } from '../../utils/AppError.js';
 
 export class NotificationsRepository {
   async findByClientId(clientId: string) {
@@ -22,18 +21,21 @@ export class NotificationsRepository {
     });
   }
 
-  async markAsRead(id: string) {
+  /**
+   * Mark as read, scoped to the owning client in the same UPDATE so ownership
+   * can't race between a separate check and the write. Returns null when the
+   * notification doesn't exist or belongs to another client.
+   */
+  async markAsRead(id: string, clientId: string) {
     const [updated] = await db
       .update(notifications)
       .set({ isRead: true })
-      .where(eq(notifications.id, id))
+      .where(
+        and(eq(notifications.id, id), eq(notifications.clientId, clientId)),
+      )
       .returning();
 
-    if (!updated) {
-      throw new AppError(404, 'Notification not found or failed to update.');
-    }
-
-    return updated;
+    return updated ?? null;
   }
 
   async create(data: typeof notifications.$inferInsert) {

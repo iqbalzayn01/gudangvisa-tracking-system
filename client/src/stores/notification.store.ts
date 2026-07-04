@@ -33,5 +33,19 @@ export const useNotificationStore = defineStore('notification', () => {
     add('warning', message);
   }
 
-  return { notifications, add, remove, success, error, info, warning };
+  /** Show an error toast from a caught value, falling back when it isn't an Error. */
+  function fromError(err: unknown, fallback: string): void {
+    add('error', err instanceof Error ? err.message : fallback);
+  }
+
+  return {
+    notifications,
+    add,
+    remove,
+    success,
+    error,
+    info,
+    warning,
+    fromError,
+  };
 });

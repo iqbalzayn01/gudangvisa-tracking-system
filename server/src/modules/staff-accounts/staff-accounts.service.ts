@@ -1,6 +1,6 @@
-import bcrypt from 'bcryptjs';
 import { StaffAccountsRepository } from './staff-accounts.repository.js';
 import { AppError } from '../../utils/AppError.js';
+import { hashPassword } from '../../utils/password.js';
 import type { CreateStaffInput } from './staff-accounts.validation.js';
 
 export class StaffAccountsService {
@@ -15,7 +15,7 @@ export class StaffAccountsService {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 12);
+    const hashedPassword = await hashPassword(data.password);
 
     return await this.repository.createStaff({
       fullName: data.fullName,
