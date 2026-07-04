@@ -9,6 +9,7 @@ import { validate } from '../../middlewares/validate.middleware.js';
 import {
   addDocumentSchema,
   verifyDocumentSchema,
+  uploadUrlSchema,
 } from './application-documents.validation.js';
 
 const router = Router();
@@ -29,6 +30,7 @@ router.use(requireStaffAuth);
 router.post(
   '/upload-url',
   authorizeRoles('admin', 'staff'),
+  validate(uploadUrlSchema),
   controller.getUploadUrl,
 );
 

@@ -1,9 +1,14 @@
 import { SignJWT, jwtVerify } from 'jose';
+import type { Response } from 'express';
 import { ENV } from '../config/env.js';
 import type { StaffJwtPayload, ClientJwtPayload } from '../types/index.js';
 
-const accessSecretKey = new TextEncoder().encode(ENV.JWT_SECRET);
+export const accessSecretKey = new TextEncoder().encode(ENV.JWT_SECRET);
 const refreshSecretKey = new TextEncoder().encode(ENV.JWT_REFRESH_SECRET);
+
+// Only HS256 tokens are ever issued; pinning the algorithm on verification
+// rejects tokens signed any other way.
+export const JWT_ALGORITHMS = ['HS256'];
 
 // Access Token: 15 minutes
 const ACCESS_TOKEN_EXPIRY = '15m';
@@ -42,7 +47,9 @@ export async function generateRefreshToken(
 export async function verifyRefreshToken(
   token: string,
 ): Promise<StaffJwtPayload | ClientJwtPayload> {
-  const { payload } = await jwtVerify(token, refreshSecretKey);
+  const { payload } = await jwtVerify(token, refreshSecretKey, {
+    algorithms: JWT_ALGORITHMS,
+  });
   return payload as unknown as StaffJwtPayload | ClientJwtPayload;
 }
 
@@ -56,3 +63,18 @@ export const REFRESH_COOKIE_OPTIONS = {
 };
 
 export const REFRESH_COOKIE_NAME = 'gv_refresh_token';
+
+/** Set (or rotate) the refresh-token cookie on a response. */
+export function setRefreshCookie(res: Response, refreshToken: string): void {
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
+}
+
+/** Clear the refresh-token cookie (logout). */
+export function clearRefreshCookie(res: Response): void {
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: REFRESH_COOKIE_OPTIONS.secure,
+    sameSite: REFRESH_COOKIE_OPTIONS.sameSite,
+    path: REFRESH_COOKIE_OPTIONS.path,
+  });
+}

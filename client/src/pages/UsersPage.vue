@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { getUsers, createUser, deleteUser } from '../api/users.api';
 import { useNotificationStore } from '../stores/notification.store';
 import type { User } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import FilterSelect from '../components/FilterSelect.vue';
-import { formatDate } from '../utils/formatters';
+import { formatDate, highlight } from '../utils/formatters';
+import { useDebouncedSearch } from '../composables/useDebouncedSearch';
+import { useSearchHotkey } from '../composables/useSearchHotkey';
 
 const notify = useNotificationStore();
 
@@ -22,20 +24,12 @@ const deleteTarget = ref<User | null>(null);
 const isDeleting = ref(false);
 
 // ── Search & Filter state ────────────────────────────────────────────────────
-const searchInput = ref('');
-const searchQuery = ref('');
+const { searchInput, searchQuery, setSearch } = useDebouncedSearch();
 const filterField = ref<'all' | 'name' | 'email'>('all');
 const filterRole = ref<'' | 'ADMIN' | 'STAFF'>('');
 const searchRef = ref<HTMLInputElement | null>(null);
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-watch(searchInput, (val) => {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    searchQuery.value = val;
-  }, 200);
-});
+useSearchHotkey(searchRef);
 
 const fieldOptions = [
   { label: 'All Fields', value: 'all' as const },
@@ -80,39 +74,14 @@ const activeFieldLabel = computed(
 );
 
 function clearAllFilters() {
-  searchInput.value = '';
-  searchQuery.value = '';
+  setSearch('');
   filterField.value = 'all';
   filterRole.value = '';
 }
 
-function handleKeydown(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    e.preventDefault();
-    nextTick(() => searchRef.value?.focus());
-  }
-}
-
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown);
   fetchUsers();
 });
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
-  if (debounceTimer) clearTimeout(debounceTimer);
-});
-
-// ── Highlight helper ─────────────────────────────────────────────────────────
-function highlight(text: string): string {
-  const q = searchQuery.value.trim();
-  if (!q) return text;
-  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return text.replace(
-    new RegExp(`(${escaped})`, 'gi'),
-    '<mark class="hl">$1</mark>',
-  );
-}
 
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 async function fetchUsers(): Promise<void> {
@@ -120,7 +89,7 @@ async function fetchUsers(): Promise<void> {
   try {
     users.value = await getUsers();
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to load users');
+    notify.fromError(err, 'Failed to load users');
   } finally {
     isLoading.value = false;
   }
@@ -141,7 +110,7 @@ async function handleCreate(): Promise<void> {
     newPassword.value = '';
     users.value.push(newUser);
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to create user');
+    notify.fromError(err, 'Failed to create user');
   } finally {
     isCreating.value = false;
   }
@@ -157,7 +126,7 @@ async function handleDelete(): Promise<void> {
     users.value = users.value.filter((u) => u.id !== targetId);
     deleteTarget.value = null;
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to delete user');
+    notify.fromError(err, 'Failed to delete user');
   } finally {
     isDeleting.value = false;
   }
@@ -488,13 +457,13 @@ async function handleDelete(): Promise<void> {
                 </div>
                 <span
                   class="text-sm text-heading font-medium"
-                  v-html="highlight(u.fullName)"
+                  v-html="highlight(u.fullName, searchQuery)"
                 ></span>
               </div>
             </td>
             <td
               class="px-4 py-3 text-sm text-body border-b border-edge"
-              v-html="highlight(u.email)"
+              v-html="highlight(u.email, searchQuery)"
             ></td>
             <td class="px-4 py-3 border-b border-edge">
               <span

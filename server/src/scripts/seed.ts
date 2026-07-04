@@ -1,7 +1,7 @@
-import bcrypt from 'bcryptjs';
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { staffAccounts, clientAccounts } from '../db/schema.js';
+import { hashPassword } from '../utils/password.js';
 
 const ADMIN_EMAIL = 'admin@gudangvisa.com';
 const ADMIN_PASSWORD = 'admin123';
@@ -36,7 +36,7 @@ async function seedAdmin(): Promise<void> {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
+  const passwordHash = await hashPassword(ADMIN_PASSWORD);
   await db.insert(staffAccounts).values({
     fullName: 'Super Admin',
     email: ADMIN_EMAIL,
@@ -66,15 +66,18 @@ async function seedClients(): Promise<void> {
   });
   const existingEmails = new Set(existing.map((c) => c.email));
 
-  const passwordHash = await bcrypt.hash(CLIENT_PASSWORD, 12);
+  const passwordHash = await hashPassword(CLIENT_PASSWORD);
 
   const toInsert = [];
   for (let i = 0; i < CLIENT_COUNT; i++) {
     const email = emails[i]!;
     if (existingEmails.has(email)) continue;
 
+    // (first, last) pairs are unique for i < 400 — required by the
+    // client_accounts_full_name_lower_unique index.
     const firstName = FIRST_NAMES[i % FIRST_NAMES.length]!;
-    const lastName = LAST_NAMES[(i * 7) % LAST_NAMES.length]!;
+    const lastName =
+      LAST_NAMES[(i + Math.floor(i / LAST_NAMES.length)) % LAST_NAMES.length]!;
     const seq = String(i + 1).padStart(4, '0');
 
     toInsert.push({
@@ -93,10 +96,21 @@ async function seedClients(): Promise<void> {
     return;
   }
 
-  await db.insert(clientAccounts).values(toInsert);
+  // A real client may already occupy one of the demo names — skip those rows
+  // instead of aborting the whole batch on the unique-name index.
+  const inserted = await db
+    .insert(clientAccounts)
+    .values(toInsert)
+    .onConflictDoNothing()
+    .returning({ id: clientAccounts.id });
+  if (inserted.length < toInsert.length) {
+    console.log(
+      `⚠️  Skipped ${toInsert.length - inserted.length} client(s) whose name/email already exists.`,
+    );
+  }
   console.log(
-    `✅ Seeded ${toInsert.length} new demo client(s) ` +
-      `(${CLIENT_COUNT - toInsert.length} already existed).`,
+    `✅ Seeded ${inserted.length} new demo client(s) ` +
+      `(${CLIENT_COUNT - inserted.length} already existed or were skipped).`,
   );
   console.log(
     `📧 Logins: client1@gudangvisa.com … client${CLIENT_COUNT}@gudangvisa.com`,

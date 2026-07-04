@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { login as apiLogin, getProfile } from '../api/auth.api';
+import { registerTokenSetter } from '../api/token-sync';
 import type { User, UserRole, LoginPayload } from '../types';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -8,6 +9,12 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const token = ref<string | null>(null);
   const isLoading = ref(false);
+
+  // Keep this store's token in sync when the axios interceptor silently
+  // refreshes the access token.
+  registerTokenSetter('auth_token', (t) => {
+    token.value = t;
+  });
 
   // ── Getters ──────────────────────────────────────────────────────────────
   const isAuthenticated = computed(() => !!token.value);

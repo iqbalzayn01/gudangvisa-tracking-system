@@ -1,5 +1,6 @@
 import type {
   ApplicationStatus,
+  BiometricStatus,
   DocumentStatus,
   DocumentType,
   Priority,
@@ -283,3 +284,29 @@ export function priorityClasses(priority: Priority): string {
 export const PRIORITY_OPTIONS = (Object.keys(PRIORITY_META) as Priority[]).map(
   (value) => ({ value, label: PRIORITY_META[value].label }),
 );
+
+// ─── Biometric status ────────────────────────────────────────────────────────
+
+export function biometricStatusLabel(status: BiometricStatus): string {
+  const map: Record<BiometricStatus, string> = {
+    not_scheduled: 'Not Scheduled',
+    scheduled: 'Scheduled',
+    completed: 'Completed',
+    rescheduled: 'Rescheduled',
+    cancelled: 'Cancelled',
+    no_show: 'No Show',
+  };
+  return map[status] ?? status;
+}
+
+export function biometricStatusClasses(status: BiometricStatus): string {
+  const map: Record<BiometricStatus, string> = {
+    not_scheduled: 'bg-slate-500/15 text-slate-400',
+    scheduled: 'bg-sky-500/15 text-sky-400',
+    completed: 'bg-emerald-500/15 text-emerald-400',
+    rescheduled: 'bg-amber-500/15 text-amber-400',
+    cancelled: 'bg-red-500/15 text-red-400',
+    no_show: 'bg-rose-500/15 text-rose-400',
+  };
+  return map[status] ?? map.not_scheduled;
+}

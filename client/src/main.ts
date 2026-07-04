@@ -4,6 +4,7 @@ import router from './router';
 import i18n from './i18n';
 import { useAuthStore } from './stores/auth.store';
 import { useClientAuthStore } from './stores/client-auth.store';
+import { useThemeStore } from './stores/theme.store';
 import App from './App.vue';
 import './styles/globals.css';
 
@@ -18,9 +19,8 @@ authStore.initialize();
 const clientAuthStore = useClientAuthStore();
 clientAuthStore.initialize();
 
-import { useThemeStore } from './stores/theme.store';
+// Instantiating the theme store applies the persisted theme in its setup.
 useThemeStore();
-// themeStore.updateTheme() is called in its setup
 
 app.use(i18n);
 app.use(router);

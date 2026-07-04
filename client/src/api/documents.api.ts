@@ -24,11 +24,18 @@ export async function uploadFileToStorage(
   signedUrl: string,
   file: File,
 ): Promise<void> {
-  await fetch(signedUrl, {
+  // `fetch` only rejects on network failure, not on HTTP 4xx/5xx — so we must
+  // check `res.ok` explicitly. Otherwise a failed storage PUT (e.g. an expired
+  // signed URL) would resolve silently and we'd save a DB row for a file that
+  // never landed in storage.
+  const res = await fetch(signedUrl, {
     method: 'PUT',
     headers: { 'Content-Type': file.type },
     body: file,
   });
+  if (!res.ok) {
+    throw new Error(`File upload failed (${res.status} ${res.statusText})`);
+  }
 }
 
 export async function addDocument(

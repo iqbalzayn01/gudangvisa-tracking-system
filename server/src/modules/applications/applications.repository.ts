@@ -4,31 +4,41 @@ import {
   applications,
   trackingHistory,
   applicationDocuments,
+  notifications,
 } from '../../db/schema.js';
 import { AppError } from '../../utils/AppError.js';
 import type { ChecklistItem } from '../../types/index.js';
 
 type ApplicationStatus = typeof applications.$inferInsert.status;
 
+/** Client-facing notification emitted alongside a write, in the same transaction. */
+export interface NotificationPayload {
+  title: string;
+  message: string;
+}
+
 export class ApplicationsRepository {
   async create(data: typeof applications.$inferInsert) {
-    const [newApp] = await db.insert(applications).values(data).returning();
+    // Application + initial history must land together — a partial write would
+    // leave an application without a timeline.
+    return await db.transaction(async (tx) => {
+      const [newApp] = await tx.insert(applications).values(data).returning();
 
-    if (!newApp) {
-      throw new AppError(500, 'Database failed to create application.');
-    }
+      if (!newApp) {
+        throw new AppError(500, 'Database failed to create application.');
+      }
 
-    // Insert initial tracking history
-    await db.insert(trackingHistory).values({
-      applicationId: newApp.id,
-      fromStatus: null,
-      toStatus: 'draft',
-      description: 'Application created and registered into the system.',
-      changedByStaffId: data.assignedStaffId ?? null,
-      isVisibleToClient: true,
+      await tx.insert(trackingHistory).values({
+        applicationId: newApp.id,
+        fromStatus: null,
+        toStatus: 'draft',
+        description: 'Application created and registered into the system.',
+        changedByStaffId: data.assignedStaffId ?? null,
+        isVisibleToClient: true,
+      });
+
+      return newApp;
     });
-
-    return newApp;
   }
 
   async findAll() {
@@ -99,18 +109,27 @@ export class ApplicationsRepository {
 
   async updateStatus(
     appId: string,
-    fromStatus: ApplicationStatus,
-    toStatus: NonNullable<ApplicationStatus>,
-    description: string,
-    isVisibleToClient: boolean,
-    staffId: string,
+    data: {
+      fromStatus: ApplicationStatus;
+      toStatus: NonNullable<ApplicationStatus>;
+      description: string;
+      isVisibleToClient: boolean;
+      staffId: string;
+      /** Undefined = keep the current value (terminal/hold statuses). */
+      progressPercentage?: number;
+      /** Inserted for the owning client when the change is visible to them. */
+      notification?: NotificationPayload;
+    },
   ) {
     return await db.transaction(async (tx) => {
       const [updated] = await tx
         .update(applications)
         .set({
-          status: toStatus,
+          status: data.toStatus,
           updatedAt: new Date(),
+          ...(data.progressPercentage !== undefined && {
+            progressPercentage: data.progressPercentage,
+          }),
         })
         .where(eq(applications.id, appId))
         .returning();
@@ -121,12 +140,21 @@ export class ApplicationsRepository {
 
       await tx.insert(trackingHistory).values({
         applicationId: appId,
-        fromStatus,
-        toStatus,
-        description,
-        changedByStaffId: staffId,
-        isVisibleToClient,
+        fromStatus: data.fromStatus,
+        toStatus: data.toStatus,
+        description: data.description,
+        changedByStaffId: data.staffId,
+        isVisibleToClient: data.isVisibleToClient,
       });
+
+      if (data.notification && data.isVisibleToClient) {
+        await tx.insert(notifications).values({
+          clientId: updated.clientId,
+          applicationId: appId,
+          title: data.notification.title,
+          message: data.notification.message,
+        });
+      }
 
       return updated;
     });
@@ -143,50 +171,96 @@ export class ApplicationsRepository {
       fieldAssistantPhone: string | null;
       biometricScheduledBy: string;
       biometricScheduledAt: Date;
+      notification?: NotificationPayload;
     },
   ) {
-    const [updated] = await db
-      .update(applications)
-      .set({
-        biometricStatus: data.biometricStatus,
-        biometricDate: data.biometricDate,
-        biometricTime: data.biometricTime,
-        biometricLocation: data.biometricLocation,
-        fieldAssistantName: data.fieldAssistantName,
-        fieldAssistantPhone: data.fieldAssistantPhone,
-        biometricScheduledBy: data.biometricScheduledBy,
-        biometricScheduledAt: data.biometricScheduledAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(applications.id, appId))
-      .returning();
+    return await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(applications)
+        .set({
+          biometricStatus: data.biometricStatus,
+          biometricDate: data.biometricDate,
+          biometricTime: data.biometricTime,
+          biometricLocation: data.biometricLocation,
+          fieldAssistantName: data.fieldAssistantName,
+          fieldAssistantPhone: data.fieldAssistantPhone,
+          biometricScheduledBy: data.biometricScheduledBy,
+          biometricScheduledAt: data.biometricScheduledAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(applications.id, appId))
+        .returning();
 
-    if (!updated) {
-      throw new AppError(404, 'Application not found or failed to update.');
-    }
+      if (!updated) {
+        throw new AppError(404, 'Application not found or failed to update.');
+      }
 
-    return updated;
+      if (data.notification) {
+        await tx.insert(notifications).values({
+          clientId: updated.clientId,
+          applicationId: appId,
+          title: data.notification.title,
+          message: data.notification.message,
+        });
+      }
+
+      return updated;
+    });
   }
 
-  async updateChecklist(appId: string, checklist: ChecklistItem[]) {
-    const [updated] = await db
-      .update(applications)
-      .set({
-        checklist,
-        updatedAt: new Date(),
-      })
-      .where(eq(applications.id, appId))
-      .returning();
+  /**
+   * Toggle one checklist item atomically. The row is locked (FOR UPDATE) for
+   * the read-modify-write so concurrent toggles can't overwrite each other's
+   * changes to the JSONB array.
+   */
+  async updateChecklistItem(
+    appId: string,
+    itemIndex: number,
+    isChecked: boolean,
+    staffId: string,
+  ) {
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ checklist: applications.checklist })
+        .from(applications)
+        .where(eq(applications.id, appId))
+        .for('update');
 
-    if (!updated) {
-      throw new AppError(404, 'Application not found or failed to update.');
-    }
+      if (!row) throw new AppError(404, 'Application not found.');
 
-    return updated;
+      const checklist = (row.checklist ?? []) as ChecklistItem[];
+      const item = itemIndex >= 0 ? checklist[itemIndex] : undefined;
+      if (!item) throw new AppError(400, 'Invalid checklist item index.');
+
+      item.isChecked = isChecked;
+      item.checkedAt = isChecked ? new Date().toISOString() : undefined;
+      item.checkedByStaffId = isChecked ? staffId : undefined;
+
+      const [updated] = await tx
+        .update(applications)
+        .set({ checklist, updatedAt: new Date() })
+        .where(eq(applications.id, appId))
+        .returning();
+
+      if (!updated) {
+        throw new AppError(404, 'Application not found or failed to update.');
+      }
+
+      return updated;
+    });
   }
 
+  /**
+   * Delete an application with its history/documents and return the storage
+   * paths of the removed documents so the caller can clean up the bucket.
+   */
   async deleteById(appId: string) {
     return await db.transaction(async (tx) => {
+      const docs = await tx
+        .select({ filePath: applicationDocuments.filePath })
+        .from(applicationDocuments)
+        .where(eq(applicationDocuments.applicationId, appId));
+
       await tx
         .delete(trackingHistory)
         .where(eq(trackingHistory.applicationId, appId));
@@ -204,7 +278,7 @@ export class ApplicationsRepository {
         throw new AppError(404, 'Application not found or already deleted.');
       }
 
-      return deleted;
+      return { deleted, filePaths: docs.map((d) => d.filePath) };
     });
   }
 }

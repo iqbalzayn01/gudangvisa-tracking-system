@@ -3,7 +3,6 @@ import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 import { ENV } from './config/env.js';
 
 // Route Imports — Authentication (Dual-Table)
@@ -22,6 +21,7 @@ import notificationRoutes from './modules/notifications/notifications.routes.js'
 
 // Middleware Imports
 import { globalErrorHandler } from './middlewares/error.middleware.js';
+import { apiLimiter } from './middlewares/rate-limit.middleware.js';
 import { AppError } from './utils/AppError.js';
 
 const app: Application = express();
@@ -50,36 +50,14 @@ app.use(
 // Cookie Parser: Required for reading HttpOnly refresh token cookies
 app.use(cookieParser());
 
-// Rate Limiter: Brute-force API protection
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 100, // Max 100 requests per window per IP
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many requests from this IP. Please try again after 15 minutes.',
-  },
-});
-
-// Stricter rate limit for auth endpoints (login/refresh)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 20, // Max 20 login attempts per window per IP
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many login attempts. Please try again after 15 minutes.',
-  },
-});
-
 // ==========================================
 // GLOBAL MIDDLEWARES
 // ==========================================
 app.use(morgan('dev'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Files go directly to Supabase Storage via signed URLs — the API only ever
+// receives JSON metadata, so a small body cap is enough.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Apply general rate limit to all API routes
 app.use('/api', apiLimiter);
@@ -97,9 +75,10 @@ app.get('/', (_req: Request, res: Response) => {
 
 // ==========================================
 // API ROUTES — Authentication (Separated Endpoints)
+// (the stricter authLimiter is applied to /login inside each router)
 // ==========================================
-app.use('/api/auth/internal', authLimiter, authInternalRoutes);
-app.use('/api/auth/client', authLimiter, authClientRoutes);
+app.use('/api/auth/internal', authInternalRoutes);
+app.use('/api/auth/client', authClientRoutes);
 
 // ==========================================
 // API ROUTES — Internal Staff Modules

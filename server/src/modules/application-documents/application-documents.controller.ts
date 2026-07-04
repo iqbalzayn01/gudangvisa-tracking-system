@@ -1,178 +1,111 @@
-import { Request, Response, NextFunction } from 'express';
 import { ApplicationDocumentsService } from './application-documents.service.js';
-import type { ApiResponse } from '../../types/index.js';
-import { AppError } from '../../utils/AppError.js';
+import {
+  asyncHandler,
+  sendSuccess,
+  getStaffUser,
+  getClientUser,
+} from '../../utils/handler.js';
 import { recordAudit } from '../../utils/audit.js';
 
 export class ApplicationDocumentsController {
   private service = new ApplicationDocumentsService();
 
-  getUploadUrl = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { fileName, contentType, fileSize } = req.body;
-      const result = await this.service.generateUploadUrl(
-        fileName,
-        contentType,
-        fileSize,
-      );
+  getUploadUrl = asyncHandler(async (req, res) => {
+    const { fileName, contentType, fileSize } = req.body;
+    const result = await this.service.generateUploadUrl(
+      fileName,
+      contentType,
+      fileSize,
+    );
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Signed upload URL generated successfully.',
-        data: result,
-      };
+    sendSuccess(res, 200, 'Signed upload URL generated successfully.', result);
+  });
 
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+  addDocument = asyncHandler(async (req, res) => {
+    const newDoc = await this.service.addDocument(req.body);
 
-  addDocument = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const newDoc = await this.service.addDocument(req.body);
+    await recordAudit(req, {
+      action: 'UPLOAD',
+      entityType: 'document',
+      applicationId: newDoc.applicationId,
+      newValues: {
+        documentType: newDoc.documentType,
+        fileName: newDoc.fileName,
+      },
+    });
 
-      await recordAudit(req, {
-        action: 'UPLOAD',
-        entityType: 'document',
-        applicationId: newDoc?.applicationId ?? req.body.applicationId ?? null,
-        newValues: {
-          documentType: newDoc?.documentType ?? req.body.documentType,
-          fileName: newDoc?.fileName ?? req.body.fileName,
-        },
-      });
+    sendSuccess(res, 201, 'Document added successfully!', newDoc);
+  });
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Document added successfully!',
-        data: newDoc,
-      };
-
-      res.status(201).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  getByApplication = async (
-    req: Request<{ applicationId: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
+  getByApplication = asyncHandler<{ applicationId: string }>(
+    async (req, res) => {
       const docs = await this.service.getDocumentsByApplication(
         req.params.applicationId,
       );
+      sendSuccess(res, 200, 'Documents retrieved successfully.', docs);
+    },
+  );
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Documents retrieved successfully.',
-        data: docs,
-      };
+  getExpiring = asyncHandler(async (req, res) => {
+    const days = Number.parseInt(String(req.query.days ?? '30'), 10);
+    const docs = await this.service.getExpiringDocuments(
+      Number.isNaN(days) ? 30 : days,
+    );
+    sendSuccess(res, 200, 'Expiring documents retrieved successfully.', docs);
+  });
 
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+  verifyDocument = asyncHandler<{ id: string }>(async (req, res) => {
+    const staff = getStaffUser(req);
+    const result = await this.service.verifyDocument(
+      req.params.id,
+      req.body,
+      staff.id,
+    );
 
-  getExpiring = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const days = Number.parseInt(String(req.query.days ?? '30'), 10);
-      const docs = await this.service.getExpiringDocuments(
-        Number.isNaN(days) ? 30 : days,
-      );
+    await recordAudit(req, {
+      action: 'STATUS_CHANGE',
+      entityType: 'document',
+      applicationId: result.applicationId,
+      newValues: { status: req.body.status },
+    });
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Expiring documents retrieved successfully.',
-        data: docs,
-      };
+    sendSuccess(res, 200, `Document ${req.body.status} successfully.`, result);
+  });
 
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+  getClientDownloadUrl = asyncHandler<{ id: string }>(async (req, res) => {
+    const client = getClientUser(req);
+    const result = await this.service.getClientDownloadUrl(
+      req.params.id,
+      client.id,
+    );
 
-  verifyDocument = async (
-    req: Request<{ id: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      if (!req.staffUser) throw new AppError(401, 'Staff auth required.');
-      const result = await this.service.verifyDocument(
-        req.params.id,
-        req.body,
-        req.staffUser.id,
-      );
+    // Client downloads are part of the audit trail (staffId stays null).
+    await recordAudit(req, {
+      action: 'DOWNLOAD',
+      entityType: 'document',
+      applicationId: result.applicationId,
+      newValues: {
+        documentId: req.params.id,
+        fileName: result.fileName,
+        clientId: client.id,
+      },
+    });
 
-      await recordAudit(req, {
-        action: 'STATUS_CHANGE',
-        entityType: 'document',
-        applicationId: result?.applicationId ?? null,
-        newValues: { status: req.body.status },
-      });
+    sendSuccess(res, 200, 'Download URL generated successfully.', {
+      fileName: result.fileName,
+      downloadUrl: result.downloadUrl,
+    });
+  });
 
-      const response: ApiResponse = {
-        success: true,
-        message: `Document ${req.body.status} successfully.`,
-        data: result,
-      };
+  deleteDocument = asyncHandler<{ id: string }>(async (req, res) => {
+    await this.service.removeDocument(req.params.id);
 
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    await recordAudit(req, {
+      action: 'DELETE',
+      entityType: 'document',
+      oldValues: { documentId: req.params.id },
+    });
 
-  getClientDownloadUrl = async (
-    req: Request<{ id: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      if (!req.clientUser) throw new AppError(401, 'Client auth required.');
-      const result = await this.service.getClientDownloadUrl(
-        req.params.id,
-        req.clientUser.id,
-      );
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Download URL generated successfully.',
-        data: result,
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  deleteDocument = async (
-    req: Request<{ id: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      await this.service.removeDocument(req.params.id);
-
-      await recordAudit(req, {
-        action: 'DELETE',
-        entityType: 'document',
-        oldValues: { documentId: req.params.id },
-      });
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Document deleted successfully.',
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    sendSuccess(res, 200, 'Document deleted successfully.');
+  });
 }

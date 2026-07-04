@@ -1,10 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
-import { ENV } from '../config/env.js';
+import { accessSecretKey, JWT_ALGORITHMS } from '../utils/jwt.js';
 import { AppError } from '../utils/AppError.js';
 import type { StaffJwtPayload, ClientJwtPayload } from '../types/index.js';
-
-const secretKey = new TextEncoder().encode(ENV.JWT_SECRET);
 
 /**
  * Middleware: Require authentication for INTERNAL staff/admin users.
@@ -18,7 +16,9 @@ export const requireStaffAuth = async (
 ) => {
   try {
     const token = extractBearerToken(req);
-    const { payload } = await jwtVerify(token, secretKey);
+    const { payload } = await jwtVerify(token, accessSecretKey, {
+      algorithms: JWT_ALGORITHMS,
+    });
     const decoded = payload as unknown as StaffJwtPayload;
 
     if (decoded.accountType !== 'internal') {
@@ -55,7 +55,9 @@ export const requireClientAuth = async (
 ) => {
   try {
     const token = extractBearerToken(req);
-    const { payload } = await jwtVerify(token, secretKey);
+    const { payload } = await jwtVerify(token, accessSecretKey, {
+      algorithms: JWT_ALGORITHMS,
+    });
     const decoded = payload as unknown as ClientJwtPayload;
 
     if (decoded.accountType !== 'client') {

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "client_accounts_full_name_lower_unique" ON "client_accounts" USING btree (lower(trim("full_name")));

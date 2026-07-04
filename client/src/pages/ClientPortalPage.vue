@@ -57,9 +57,7 @@ async function download(doc: ApplicationDocument): Promise<void> {
     const url = await getDocumentDownloadUrl(doc.id);
     window.open(url, '_blank', 'noopener,noreferrer');
   } catch (err) {
-    notify.error(
-      err instanceof Error ? err.message : 'Failed to generate download link',
-    );
+    notify.fromError(err, 'Failed to generate download link');
   } finally {
     downloadingId.value = null;
   }

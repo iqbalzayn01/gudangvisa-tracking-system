@@ -15,6 +15,20 @@
       "when": 1782574986114,
       "tag": "0001_oval_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783134021413,
+      "tag": "0002_pink_vengeance",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783136607732,
+      "tag": "0003_steep_captain_america",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
-import bcrypt from 'bcryptjs';
 import { ClientAccountsRepository } from './client-accounts.repository.js';
 import { AppError } from '../../utils/AppError.js';
+import { hashPassword } from '../../utils/password.js';
+import { deleteStorageFiles } from '../../utils/storage.js';
 import type {
   CreateClientAccountInput,
   UpdateClientAccountInput,
@@ -18,7 +19,15 @@ export class ClientAccountsService {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 12);
+    const existingName = await this.repository.findByFullName(data.fullName);
+    if (existingName) {
+      throw new AppError(
+        400,
+        'Full name is already registered. Please use another name.',
+      );
+    }
+
+    const hashedPassword = await hashPassword(data.password);
 
     return await this.repository.createClient({
       fullName: data.fullName,
@@ -47,10 +56,29 @@ export class ClientAccountsService {
     if (!existing) {
       throw new AppError(404, 'Client account not found.');
     }
+
+    if (data.fullName !== undefined) {
+      const existingName = await this.repository.findByFullName(
+        data.fullName,
+        id,
+      );
+      if (existingName) {
+        throw new AppError(
+          400,
+          'Full name is already registered. Please use another name.',
+        );
+      }
+    }
+
     return await this.repository.updateById(id, data);
   }
 
   async removeClient(id: string) {
-    return await this.repository.deleteById(id);
+    // The DB cascade removes the client's applications/documents/notifications;
+    // grab the document storage paths first so the bucket files go too.
+    const filePaths = await this.repository.findDocumentPathsByClientId(id);
+    const result = await this.repository.deleteById(id);
+    await deleteStorageFiles(filePaths);
+    return result;
   }
 }

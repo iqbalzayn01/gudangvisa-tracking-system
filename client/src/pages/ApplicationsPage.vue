@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { deleteApplication } from '../api/applications.api';
 import { useAuthStore } from '../stores/auth.store';
@@ -12,7 +12,9 @@ import PriorityBadge from '../components/PriorityBadge.vue';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import FilterSelect from '../components/FilterSelect.vue';
-import { formatDate } from '../utils/formatters';
+import { formatDate, highlight } from '../utils/formatters';
+import { useDebouncedSearch } from '../composables/useDebouncedSearch';
+import { useSearchHotkey } from '../composables/useSearchHotkey';
 import {
   APPLICATION_STATUSES,
   PRIORITY_OPTIONS,
@@ -31,20 +33,12 @@ const notify = useNotificationStore();
 const deleteTargetId = ref<string | null>(null);
 
 // ── Search & Filter state ────────────────────────────────────────────────────
-const searchInput = ref('');
-const searchQuery = ref('');
+const { searchInput, searchQuery, setSearch } = useDebouncedSearch();
 const filterStatus = ref<ApplicationStatus | ''>('');
 const filterPriority = ref<Priority | ''>('');
 const searchRef = ref<HTMLInputElement | null>(null);
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-watch(searchInput, (val) => {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    searchQuery.value = val;
-  }, 200);
-});
+useSearchHotkey(searchRef);
 
 const statusSelectOptions = computed(() =>
   APPLICATION_STATUSES.map((s) => ({
@@ -83,45 +77,17 @@ const hasActiveFilters = computed(
 );
 
 function clearAllFilters() {
-  searchInput.value = '';
-  searchQuery.value = '';
+  setSearch('');
   filterStatus.value = '';
   filterPriority.value = '';
 }
 
-function handleKeydown(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    e.preventDefault();
-    nextTick(() => searchRef.value?.focus());
-  }
-}
-
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown);
   if (!applicationStore.hasFetched) applicationStore.fetchAll();
   // Allow deep-links / topbar search to pre-fill the query (?q=…).
   const q = route.query.q;
-  if (typeof q === 'string' && q) {
-    searchInput.value = q;
-    searchQuery.value = q;
-  }
+  if (typeof q === 'string' && q) setSearch(q);
 });
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
-  if (debounceTimer) clearTimeout(debounceTimer);
-});
-
-// ── Highlight helper ─────────────────────────────────────────────────────────
-function highlight(text: string): string {
-  const q = searchQuery.value.trim();
-  if (!q) return text;
-  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return text.replace(
-    new RegExp(`(${escaped})`, 'gi'),
-    '<mark class="hl">$1</mark>',
-  );
-}
 
 function progressColor(p: number): string {
   if (p >= 100) return 'bg-emerald-500';
@@ -138,9 +104,7 @@ async function handleDelete(): Promise<void> {
     applicationStore.removeLocal(id);
     notify.success('Application deleted');
   } catch (err) {
-    notify.error(
-      err instanceof Error ? err.message : 'Failed to delete application',
-    );
+    notify.fromError(err, 'Failed to delete application');
   } finally {
     deleteTargetId.value = null;
   }
@@ -424,7 +388,7 @@ async function handleDelete(): Promise<void> {
                 <div class="flex items-center gap-2">
                   <code
                     class="text-[13px] text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full font-mono whitespace-nowrap"
-                    v-html="highlight(a.trackingCode)"
+                    v-html="highlight(a.trackingCode, searchQuery)"
                   ></code>
                   <Button
                     variant="ghost"
@@ -458,11 +422,11 @@ async function handleDelete(): Promise<void> {
               </td>
               <td
                 class="px-4 py-3 text-sm text-heading font-medium border-b border-edge"
-                v-html="highlight(a.client?.name ?? '—')"
+                v-html="highlight(a.client?.name ?? '—', searchQuery)"
               ></td>
               <td
                 class="px-4 py-3 text-sm text-body border-b border-edge max-md:hidden whitespace-nowrap"
-                v-html="highlight(visaTypeLabel(a.visaType))"
+                v-html="highlight(visaTypeLabel(a.visaType), searchQuery)"
               ></td>
               <td class="px-4 py-3 border-b border-edge">
                 <StatusBadge :status="a.currentStatus" />

@@ -65,7 +65,29 @@ There are two **independent** sessions, kept apart so a leak in one cannot escal
 | Staff   | `auth.store`           | `auth_token`        | `/api/auth/internal/refresh` |
 | Client  | `client-auth.store`    | `client_auth_token` | `/api/auth/client/refresh`   |
 
-Each session uses its own Axios instance (`api/client.ts` and `api/portal.client.ts`) with a silent-refresh response interceptor.
+Each session uses its own Axios instance (`api/client.ts` and `api/portal.client.ts`), both produced by the shared `createApiClient` factory described above.
+
+## Feature Summaries
+
+### Applications
+
+The core staff workflow, spanning three views:
+
+- **List** (`ApplicationsPage.vue`) — every application in one table with debounced search (`useDebouncedSearch`), status + priority filters, a Ctrl/Cmd-K search shortcut (`useSearchHotkey`), an auto-computed progress bar per status, and admin-only delete. Matched search terms are highlighted with the **HTML-safe** `highlight()` util (escapes the source text before wrapping matches, so a client name containing markup can't inject HTML through `v-html`). Rows deep-link via `?q=` and open the detail view.
+- **Create** (`ApplicationCreatePage.vue`) — pick a client (searchable combobox), visa type, priority (`low`/`medium`/`high`/`urgent`) and notes; on success it shows the generated **reference number** and adds the row to the store optimistically.
+- **Detail** (`ApplicationDetailPage.vue`) — drives the whole lifecycle: status updates (with a client-visible description toggle), the per-visa-type verification **checklist**, **document** management (3-step upload → Supabase signed URL → record; verify / reject-with-reason / delete; download), and the **tracking timeline**. Edits here are pushed back into the applications store (`updateLocal`) so the list and Biometrics views reflect them without a full refetch.
+
+All views read shared metadata from `utils/labels.ts` (status labels, badge colors, lifecycle order, progress %), keeping them in sync with the backend enums.
+
+### Biometric
+
+Biometric scheduling lives on the application **detail** page (`updateBiometricSchedule`): status (`scheduled`/`completed`/`rescheduled`/`cancelled`/`no_show`), date, time, location, and field-assistant contact.
+
+`BiometricSchedulesPage.vue` is a **derived** view — it does no fetching of its own. It reads the applications store, filters to those with a biometric schedule, shows summary counts per status, sorts soonest-first, and each row links back to the owning application's detail page. Times render through the shared `formatTime` helper (`HH:MM`), consistent with the detail view.
+
+### Audit Log
+
+`AuditLogsPage.vue` is the **admin-only** activity viewer (guarded by `meta.requiresAdmin`). It shows Timestamp, User (actor + role badge), Action (colored pill), Entity (+ description + `#entityId`), and IP Address. Action and Entity filters are applied **server-side** (a watcher refetches on change); a free-text box does client-side search over the loaded set. It renders **real data only** — a failed request surfaces an inline error banner (and clears stale rows) and an empty trail shows an empty state; there is no demo/mock fallback.
 
 ## Live Updates
 
@@ -84,8 +106,11 @@ Per-route metadata (title, description, `robots`, canonical, Open Graph / Twitte
 ```
 src/
 ├── api/            # Axios instances + typed API modules (staff + portal)
+│                   #   create-client.ts — createApiClient() factory shared by both instances
+│                   #   token-sync.ts    — bridges interceptor refreshes back into the auth stores
 ├── components/     # Reusable UI (StatusBadge, PriorityBadge, StatusStepper, TrackingTimeline, …)
 │   └── ui/         # reka-ui / shadcn-vue primitives (Button, Select)
+├── composables/    # useDebouncedSearch (debounced list search), useSearchHotkey (Ctrl/Cmd-K focus)
 ├── guards/         # Router navigation guard (staff + client domains)
 ├── i18n/           # vue-i18n setup + locales/{id,en}.ts
 ├── layouts/        # Dashboard / auth layouts
@@ -94,8 +119,14 @@ src/
 ├── stores/         # Pinia stores (auth, client-auth, application, client, notification, theme)
 ├── styles/         # globals.css (Tailwind v4 + design tokens)
 ├── types/          # Shared TypeScript types (mirror backend enums: ApplicationStatus, VisaType, DocumentType, Priority, …)
-└── utils/          # formatters.ts, labels.ts (status/visa/document/priority labels + badge classes), clipboard, seo.ts
+└── utils/          # formatters.ts (dates, file size, expiry, XSS-safe highlight),
+                    #   labels.ts (status/visa/document/priority/biometric labels + badge classes),
+                    #   clipboard.ts, seo.ts
 ```
+
+### Shared axios factory
+
+Both sessions are built from one `createApiClient({ tokenKey, refreshPath, loginRedirect })` factory (`api/create-client.ts`) instead of two hand-copied instances. It injects the bearer token, normalizes error messages, and runs a **single-flight** 401→refresh→retry interceptor: concurrent 401s share one refresh request (rather than each firing its own and invalidating one another under refresh-token rotation), and the new token is pushed back into the Pinia store via `api/token-sync.ts`.
 
 ## Labels & Status Metadata
 

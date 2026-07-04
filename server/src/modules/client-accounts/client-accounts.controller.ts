@@ -1,117 +1,53 @@
-import { Request, Response, NextFunction } from 'express';
 import { ClientAccountsService } from './client-accounts.service.js';
-import type { ApiResponse } from '../../types/index.js';
+import { asyncHandler, sendSuccess } from '../../utils/handler.js';
 import { recordAudit } from '../../utils/audit.js';
 
 export class ClientAccountsController {
   private service = new ClientAccountsService();
 
-  create = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const newClient = await this.service.createClientAccount(req.body);
+  create = asyncHandler(async (req, res) => {
+    const newClient = await this.service.createClientAccount(req.body);
 
-      await recordAudit(req, {
-        action: 'CREATE',
-        entityType: 'client',
-        newValues: { email: req.body.email, fullName: req.body.fullName },
-      });
+    await recordAudit(req, {
+      action: 'CREATE',
+      entityType: 'client',
+      newValues: { email: req.body.email, fullName: req.body.fullName },
+    });
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Client account created successfully!',
-        data: newClient,
-      };
+    sendSuccess(res, 201, 'Client account created successfully!', newClient);
+  });
 
-      res.status(201).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+  getAll = asyncHandler(async (_req, res) => {
+    const clients = await this.service.getAllClients();
+    sendSuccess(res, 200, 'Client accounts retrieved successfully.', clients);
+  });
 
-  getAll = async (_req: Request, res: Response, next: NextFunction) => {
-    try {
-      const clients = await this.service.getAllClients();
+  getById = asyncHandler<{ id: string }>(async (req, res) => {
+    const client = await this.service.getClientById(req.params.id);
+    sendSuccess(res, 200, 'Client account retrieved successfully.', client);
+  });
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Client accounts retrieved successfully.',
-        data: clients,
-      };
+  update = asyncHandler<{ id: string }>(async (req, res) => {
+    const updated = await this.service.updateClient(req.params.id, req.body);
 
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    await recordAudit(req, {
+      action: 'UPDATE',
+      entityType: 'client',
+      newValues: { clientId: req.params.id, ...req.body },
+    });
 
-  getById = async (
-    req: Request<{ id: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      const client = await this.service.getClientById(req.params.id);
+    sendSuccess(res, 200, 'Client account updated successfully.', updated);
+  });
 
-      const response: ApiResponse = {
-        success: true,
-        message: 'Client account retrieved successfully.',
-        data: client,
-      };
+  delete = asyncHandler<{ id: string }>(async (req, res) => {
+    await this.service.removeClient(req.params.id);
 
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    await recordAudit(req, {
+      action: 'DELETE',
+      entityType: 'client',
+      oldValues: { clientId: req.params.id },
+    });
 
-  update = async (
-    req: Request<{ id: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      const updated = await this.service.updateClient(req.params.id, req.body);
-
-      await recordAudit(req, {
-        action: 'UPDATE',
-        entityType: 'client',
-        newValues: { clientId: req.params.id, ...req.body },
-      });
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Client account updated successfully.',
-        data: updated,
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  delete = async (
-    req: Request<{ id: string }>,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      await this.service.removeClient(req.params.id);
-
-      await recordAudit(req, {
-        action: 'DELETE',
-        entityType: 'client',
-        oldValues: { clientId: req.params.id },
-      });
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Client account deleted successfully.',
-      };
-
-      res.status(200).json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
+    sendSuccess(res, 200, 'Client account deleted successfully.');
+  });
 }

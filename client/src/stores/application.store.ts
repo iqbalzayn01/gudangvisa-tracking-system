@@ -132,6 +132,17 @@ export const useApplicationStore = defineStore('applications', () => {
     }
   }
 
+  /**
+   * Replace a full application record in the local list (e.g. after the detail
+   * page saves a biometric schedule, checklist toggle, or status change) so the
+   * list/biometrics pages that derive from this store stay in sync without a
+   * full refetch.
+   */
+  function updateLocal(application: Application): void {
+    const idx = applications.value.findIndex((a) => a.id === application.id);
+    if (idx !== -1) applications.value[idx] = application;
+  }
+
   /** Optimistic: remove an application from the local list. */
   function removeLocal(id: string): void {
     applications.value = applications.value.filter((a) => a.id !== id);
@@ -154,6 +165,7 @@ export const useApplicationStore = defineStore('applications', () => {
     fetchAll,
     addLocal,
     updateStatusLocal,
+    updateLocal,
     removeLocal,
   };
 });

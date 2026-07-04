@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useClientStore } from '../stores/client.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotificationStore } from '../stores/notification.store';
@@ -8,22 +8,14 @@ import { updateClient } from '../api/clients.api';
 import type { Client } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import { formatDate } from '../utils/formatters';
+import { useDebouncedSearch } from '../composables/useDebouncedSearch';
 
 const auth = useAuthStore();
 const clientStore = useClientStore();
 const notify = useNotificationStore();
 
 // ── Search ─────────────────────────────────────────────────────────────────
-const searchInput = ref('');
-const searchQuery = ref('');
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-watch(searchInput, (val) => {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    searchQuery.value = val;
-  }, 200);
-});
+const { searchInput, searchQuery } = useDebouncedSearch();
 
 const filteredClients = computed(() => {
   const list = clientStore.sortedClients;
@@ -71,9 +63,7 @@ async function saveEdit(): Promise<void> {
     notify.success('Client updated successfully.');
     closeEdit();
   } catch (err) {
-    notify.error(
-      err instanceof Error ? err.message : 'Failed to update client',
-    );
+    notify.fromError(err, 'Failed to update client');
   } finally {
     isSaving.value = false;
   }
@@ -81,10 +71,6 @@ async function saveEdit(): Promise<void> {
 
 onMounted(() => {
   if (!clientStore.hasFetched) clientStore.fetchAll();
-});
-
-onUnmounted(() => {
-  if (debounceTimer) clearTimeout(debounceTimer);
 });
 </script>
 

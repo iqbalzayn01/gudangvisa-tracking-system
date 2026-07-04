@@ -34,10 +34,10 @@ import FileUpload from '../components/FileUpload.vue';
 import {
   formatDate,
   formatDateTime,
+  formatTime,
   expiryState,
   expiryClasses,
   daysUntil,
-  biometricStatusLabel,
 } from '../utils/formatters';
 import {
   STATUS_GROUPS,
@@ -47,6 +47,7 @@ import {
   documentStatusLabel,
   documentStatusClass,
   visaTypeLabel,
+  biometricStatusLabel,
 } from '../utils/labels';
 import { copyToClipboard } from '../utils/clipboard';
 
@@ -127,10 +128,11 @@ async function loadApplication(): Promise<void> {
     application.value = await getApplicationById(id);
     documents.value = await getDocumentsByApplication(id);
     syncBiometricForm();
+    // Propagate the fresh record to the store so the applications list and the
+    // biometrics page (both derived from the store) reflect edits made here.
+    applicationStore.updateLocal(application.value);
   } catch (err) {
-    notify.error(
-      err instanceof Error ? err.message : 'Failed to load application',
-    );
+    notify.fromError(err, 'Failed to load application');
     router.push('/applications');
   } finally {
     isLoading.value = false;
@@ -168,9 +170,7 @@ async function handleStatusUpdate(): Promise<void> {
     visibleToClient.value = true;
     await loadApplication();
   } catch (err) {
-    notify.error(
-      err instanceof Error ? err.message : 'Failed to update status',
-    );
+    notify.fromError(err, 'Failed to update status');
   } finally {
     isUpdating.value = false;
   }
@@ -207,7 +207,7 @@ async function handleDocUpload(): Promise<void> {
     expiryDate.value = '';
     selectedFile.value = null;
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Upload failed');
+    notify.fromError(err, 'Upload failed');
   } finally {
     isUploading.value = false;
     uploadProgress.value = '';
@@ -222,7 +222,7 @@ async function approveDoc(doc: ApplicationDocument): Promise<void> {
     replaceDoc(updated);
     notify.success('Document verified');
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to verify');
+    notify.fromError(err, 'Failed to verify');
   } finally {
     verifyingId.value = null;
   }
@@ -242,7 +242,7 @@ async function confirmReject(): Promise<void> {
     rejectingId.value = null;
     rejectionReason.value = '';
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to reject');
+    notify.fromError(err, 'Failed to reject');
   } finally {
     verifyingId.value = null;
   }
@@ -264,7 +264,7 @@ async function handleDocDelete(id: string): Promise<void> {
     documents.value = documents.value.filter((d) => d.id !== id);
     notify.success('Document deleted');
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to delete');
+    notify.fromError(err, 'Failed to delete');
   }
 }
 
@@ -282,8 +282,9 @@ async function handleChecklistToggle(
       isChecked,
     );
     application.value.checklist = result.checklist;
+    applicationStore.updateLocal(application.value);
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to update');
+    notify.fromError(err, 'Failed to update');
   } finally {
     togglingIndex.value = null;
   }
@@ -306,7 +307,7 @@ async function handleBiometricSave(): Promise<void> {
     showBiometricForm.value = false;
     await loadApplication();
   } catch (err) {
-    notify.error(err instanceof Error ? err.message : 'Failed to save');
+    notify.fromError(err, 'Failed to save');
   } finally {
     isSavingBio.value = false;
   }
@@ -601,7 +602,7 @@ async function handleBiometricSave(): Promise<void> {
             <span class="text-heading font-medium ml-1"
               >{{ application.biometricDate ? formatDate(application.biometricDate) : '—'
               }}<span v-if="application.biometricTime">
-                · {{ application.biometricTime }}</span
+                · {{ formatTime(application.biometricTime) }}</span
               ></span
             >
           </div>

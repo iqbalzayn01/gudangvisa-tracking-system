@@ -1,3 +1,6 @@
+# DB cleanup backups (contain password hashes — never commit)
+backups/
+
 # Logs
 logs
 *.log

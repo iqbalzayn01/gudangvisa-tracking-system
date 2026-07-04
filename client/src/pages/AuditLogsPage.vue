@@ -87,6 +87,7 @@ async function load() {
       entity: filterEntity.value,
     });
   } catch (err) {
+    logs.value = [];
     error.value = err instanceof Error ? err.message : 'Failed to load logs';
   } finally {
     isLoading.value = false;
