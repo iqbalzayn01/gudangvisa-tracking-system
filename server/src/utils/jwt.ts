@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { Response } from 'express';
 import { ENV } from '../config/env.js';
-import type { StaffJwtPayload, ClientJwtPayload } from '../types/index.js';
+import type { StaffJwtPayload } from '../types/index.js';
 
 export const accessSecretKey = new TextEncoder().encode(ENV.JWT_SECRET);
 const refreshSecretKey = new TextEncoder().encode(ENV.JWT_REFRESH_SECRET);
@@ -19,7 +19,7 @@ const REFRESH_TOKEN_EXPIRY = '7d';
  * Generate access token (short-lived, stored in memory/Pinia).
  */
 export async function generateAccessToken(
-  payload: StaffJwtPayload | ClientJwtPayload,
+  payload: StaffJwtPayload,
 ): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
@@ -32,7 +32,7 @@ export async function generateAccessToken(
  * Generate refresh token (long-lived, stored in HttpOnly cookie).
  */
 export async function generateRefreshToken(
-  payload: StaffJwtPayload | ClientJwtPayload,
+  payload: StaffJwtPayload,
 ): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
@@ -46,11 +46,11 @@ export async function generateRefreshToken(
  */
 export async function verifyRefreshToken(
   token: string,
-): Promise<StaffJwtPayload | ClientJwtPayload> {
+): Promise<StaffJwtPayload> {
   const { payload } = await jwtVerify(token, refreshSecretKey, {
     algorithms: JWT_ALGORITHMS,
   });
-  return payload as unknown as StaffJwtPayload | ClientJwtPayload;
+  return payload as unknown as StaffJwtPayload;
 }
 
 /** Cookie configuration for the refresh token. */

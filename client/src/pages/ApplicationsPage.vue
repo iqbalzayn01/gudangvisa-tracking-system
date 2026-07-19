@@ -31,6 +31,7 @@ const applicationStore = useApplicationStore();
 const notify = useNotificationStore();
 
 const deleteTargetId = ref<string | null>(null);
+const isDeleting = ref(false);
 
 // ── Search & Filter state ────────────────────────────────────────────────────
 const { searchInput, searchQuery, setSearch } = useDebouncedSearch();
@@ -99,14 +100,16 @@ function progressColor(p: number): string {
 async function handleDelete(): Promise<void> {
   if (!deleteTargetId.value) return;
   const id = deleteTargetId.value;
+  isDeleting.value = true;
   try {
     await deleteApplication(id);
     applicationStore.removeLocal(id);
     notify.success('Application deleted');
+    deleteTargetId.value = null;
   } catch (err) {
     notify.fromError(err, 'Failed to delete application');
   } finally {
-    deleteTargetId.value = null;
+    isDeleting.value = false;
   }
 }
 </script>
@@ -520,6 +523,7 @@ async function handleDelete(): Promise<void> {
       message="This will permanently delete the application, all tracking history, documents, and uploaded files. This cannot be undone."
       confirm-text="Delete"
       variant="danger"
+      :loading="isDeleting"
       @confirm="handleDelete"
       @cancel="deleteTargetId = null"
     />

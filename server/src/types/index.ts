@@ -21,19 +21,9 @@ export interface StaffJwtPayload {
 }
 
 /**
- * JWT Payload for External Client accounts.
- */
-export interface ClientJwtPayload {
-  id: string;
-  fullName: string;
-  email: string;
-  accountType: 'client';
-}
-
-/**
  * Union type for all JWT payloads.
  */
-export type JwtPayloadData = StaffJwtPayload | ClientJwtPayload;
+export type JwtPayloadData = StaffJwtPayload;
 
 /**
  * Checklist item stored in JSONB column of applications table.

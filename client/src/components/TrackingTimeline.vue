@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import type { PublicHistory, TrackingHistory } from '../types';
+import type { TrackingHistory } from '../types';
 import StatusBadge from './StatusBadge.vue';
 import { formatDateTime } from '../utils/formatters';
 
 defineProps<{
-  histories: (PublicHistory | TrackingHistory)[];
-  showInternal?: boolean;
+  histories: TrackingHistory[];
 }>();
 </script>
 
@@ -35,21 +34,13 @@ defineProps<{
           <span class="text-[13px] text-subtle">{{ formatDateTime(entry.createdAt) }}</span>
         </div>
 
-        <p v-if="entry.descriptionPublic" class="mt-2 text-sm text-body leading-relaxed">
-          {{ entry.descriptionPublic }}
-        </p>
-
-        <!-- Internal notes (staff only) -->
-        <p
-          v-if="showInternal && 'descriptionInternal' in entry && entry.descriptionInternal"
-          class="mt-1 text-xs text-amber-400/80 italic"
-        >
-          🔒 {{ entry.descriptionInternal }}
+        <p v-if="entry.description" class="mt-2 text-sm text-body leading-relaxed">
+          {{ entry.description }}
         </p>
 
         <p class="flex items-center gap-1.5 text-[13px] text-subtle mt-1">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          {{ 'updater' in entry ? entry.updater?.fullName : ('updatedBy' in entry && typeof entry.updatedBy === 'object' ? entry.updatedBy.fullName : 'Staff') }}
+          {{ entry.updater?.fullName ?? 'Staff' }}
         </p>
       </div>
     </div>

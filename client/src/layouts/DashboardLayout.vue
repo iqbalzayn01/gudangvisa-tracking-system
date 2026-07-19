@@ -19,6 +19,7 @@ const navItems = computed(() => {
     { label: 'Applications', path: '/applications', icon: 'applications' },
     { label: 'Biometrics', path: '/biometrics', icon: 'biometric' },
     { label: 'Clients', path: '/clients', icon: 'clients' },
+    { label: 'Reports', path: '/reports', icon: 'report' },
   ];
   if (auth.isAdmin) {
     items.push({ label: 'Audit Logs', path: '/audit-logs', icon: 'audit' });
@@ -169,6 +170,23 @@ function toggleSidebar() {
             <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
             <path d="M8.65 22c.21-.66.45-1.32.57-2" />
             <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+          </svg>
+          <!-- Report icon -->
+          <svg
+            v-else-if="item.icon === 'report'"
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
           </svg>
           <!-- Audit icon -->
           <svg

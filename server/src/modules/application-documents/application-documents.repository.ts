@@ -57,13 +57,16 @@ export class ApplicationDocumentsRepository {
     });
   }
 
-  /** Fetch a document along with the id of the client that owns its application. */
-  async findByIdWithOwner(id: string) {
+  /**
+   * Fetch a document along with its parent application's reference number
+   * and status — enough to gate the public, resi-scoped download.
+   */
+  async findByIdWithApplicationMeta(id: string) {
     return await db.query.applicationDocuments.findFirst({
       where: eq(applicationDocuments.id, id),
       with: {
         application: {
-          columns: { id: true, clientId: true },
+          columns: { id: true, referenceNumber: true, status: true },
         },
       },
     });

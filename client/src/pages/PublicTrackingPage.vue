@@ -12,7 +12,7 @@ import {
   Zap,
   Target,
   Rocket,
-  LogIn,
+  Search,
   ChevronDown,
 } from 'lucide-vue-next';
 import PublicNavbar from '../components/PublicNavbar.vue';
@@ -37,8 +37,17 @@ const whyUsCards = computed(() => tm('whyUs.items') as unknown as Card[]);
 const serviceIcons = [Globe, Briefcase, IdCard];
 const whyUsIcons = [ShieldCheck, DollarSign, Zap];
 
-function goToLogin() {
-  router.push('/portal/login');
+const referenceNumber = ref('');
+const trackError = ref('');
+
+function submitTracking(): void {
+  const ref = referenceNumber.value.trim();
+  if (!ref) {
+    trackError.value = t('tracking.empty');
+    return;
+  }
+  trackError.value = '';
+  router.push(`/portal/track/${encodeURIComponent(ref)}`);
 }
 
 // ── FAQ accordion ──────────────────────────────────────────────────────────
@@ -97,14 +106,27 @@ onMounted(async () => {
           {{ t('hero.subtitle') }}
         </p>
 
-        <Button
-          type="button"
-          class="inline-flex items-center justify-center cursor-pointer gap-2.5 bg-red-500 hover:bg-red-600 text-white px-8 py-4 rounded-2xl text-base font-semibold transition-colors shadow-lg shadow-red-500/20 h-auto"
-          @click="goToLogin"
+        <form
+          class="w-full max-w-md flex flex-col sm:flex-row items-stretch gap-3"
+          @submit.prevent="submitTracking"
         >
-          <LogIn :size="20" />
-          {{ t('tracking.cta') }}
-        </Button>
+          <input
+            v-model="referenceNumber"
+            type="text"
+            :placeholder="t('tracking.placeholder')"
+            class="flex-1 px-5 py-4 rounded-2xl bg-white/95 text-heading placeholder:text-subtle text-sm outline-none focus:ring-2 focus:ring-red-500"
+          />
+          <Button
+            type="submit"
+            class="inline-flex items-center justify-center cursor-pointer gap-2.5 bg-red-500 hover:bg-red-600 text-white px-8 py-4 rounded-2xl text-base font-semibold transition-colors shadow-lg shadow-red-500/20 h-auto shrink-0"
+          >
+            <Search :size="20" />
+            {{ t('tracking.cta') }}
+          </Button>
+        </form>
+        <p v-if="trackError" class="text-sm text-red-400 max-w-md mt-3">
+          {{ trackError }}
+        </p>
         <p class="text-sm text-white/60 max-w-md mt-5 leading-relaxed">
           {{ t('tracking.note') }}
         </p>

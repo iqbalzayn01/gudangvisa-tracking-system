@@ -14,7 +14,7 @@ const router = createRouter({
       // Public route, but Secure for SEO (not indexed).
       meta: { public: true, title: 'Masuk Staf — GudangVisa' },
     },
-    // ── Client Portal (separate client authentication) ─────────────────────
+    // ── Public Client Tracking (no login — resi/reference-number based) ────
     // Public landing / entry point for clients — the only indexable page.
     {
       path: '/portal',
@@ -30,17 +30,10 @@ const router = createRouter({
       },
     },
     {
-      path: '/portal/login',
-      name: 'ClientLogin',
-      component: () => import('../pages/ClientLoginPage.vue'),
-      meta: { portal: true, title: 'Masuk Portal Klien — GudangVisa' },
-    },
-    // Authenticated client portal (their applications + details) — Secure.
-    {
-      path: '/portal/applications',
-      name: 'ClientPortal',
-      component: () => import('../pages/ClientPortalPage.vue'),
-      meta: { portal: true, title: 'Dokumen Saya — GudangVisa' },
+      path: '/portal/track/:referenceNumber',
+      name: 'PortalTrackResult',
+      component: () => import('../pages/PublicTrackingResultPage.vue'),
+      meta: { public: true, title: 'Lacak Permohonan — GudangVisa' },
     },
 
     // ── Authenticated Routes ───────────────────────────────────────────────
@@ -88,6 +81,12 @@ const router = createRouter({
           path: 'biometrics',
           name: 'Biometrics',
           component: () => import('../pages/BiometricSchedulesPage.vue'),
+        },
+        {
+          path: 'reports',
+          name: 'Reports',
+          component: () => import('../pages/ReportsPage.vue'),
+          meta: { title: 'Reports — GudangVisa' },
         },
         {
           path: 'audit-logs',

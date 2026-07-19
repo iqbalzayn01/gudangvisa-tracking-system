@@ -525,6 +525,7 @@ async function handleDelete(): Promise<void> {
       :message="`Are you sure you want to delete ${deleteTarget.fullName}? This action cannot be undone.`"
       confirm-text="Delete"
       variant="danger"
+      :loading="isDeleting"
       @confirm="handleDelete"
       @cancel="deleteTarget = null"
     />

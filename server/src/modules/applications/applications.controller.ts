@@ -1,10 +1,5 @@
 import { ApplicationsService } from './applications.service.js';
-import {
-  asyncHandler,
-  sendSuccess,
-  getStaffUser,
-  getClientUser,
-} from '../../utils/handler.js';
+import { asyncHandler, sendSuccess, getStaffUser } from '../../utils/handler.js';
 import { recordAudit } from '../../utils/audit.js';
 
 export class ApplicationsController {
@@ -109,9 +104,12 @@ export class ApplicationsController {
     sendSuccess(res, 200, 'Application deleted successfully.');
   });
 
-  getClientApplications = asyncHandler(async (req, res) => {
-    const client = getClientUser(req);
-    const apps = await this.service.getApplicationsByClientId(client.id);
-    sendSuccess(res, 200, 'Your applications retrieved successfully.', apps);
-  });
+  trackByReference = asyncHandler<{ referenceNumber: string }>(
+    async (req, res) => {
+      const app = await this.service.trackByReferenceNumber(
+        req.params.referenceNumber,
+      );
+      sendSuccess(res, 200, 'Application status retrieved successfully.', app);
+    },
+  );
 }

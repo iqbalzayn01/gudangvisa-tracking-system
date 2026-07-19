@@ -28,3 +28,18 @@ export const authLimiter = rateLimit({
     message: 'Too many login attempts. Please try again after 15 minutes.',
   },
 });
+
+/**
+ * Public, no-auth resi lookup/download (reference numbers are only a 5-digit
+ * random suffix per year — brute-forceable without an account behind them).
+ */
+export const trackingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many tracking requests. Please try again after 15 minutes.',
+  },
+});

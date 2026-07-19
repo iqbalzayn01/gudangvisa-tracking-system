@@ -12,8 +12,10 @@ export default {
       'Masukkan kode pelacakan Anda untuk melihat status saat ini dan riwayat lengkap dokumen imigrasi Anda.',
   },
   tracking: {
-    cta: 'Masuk untuk Cek Dokumen',
-    note: 'Masuk ke portal klien Anda untuk melihat status terkini dan riwayat lengkap dokumen imigrasi Anda.',
+    cta: 'Lacak Dokumen',
+    placeholder: 'Masukkan nomor resi (GV-2026-xxxxx)',
+    note: 'Masukkan nomor resi yang Anda terima saat pendaftaran untuk melihat status terkini dan mengunduh dokumen yang sudah selesai — tanpa perlu login.',
+    empty: 'Nomor resi wajib diisi.',
   },
   services: {
     title: 'Layanan Utama Kami',

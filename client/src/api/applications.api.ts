@@ -29,14 +29,10 @@ export function mapDoc(d: any): ApplicationDocument {
 }
 
 function mapHistory(h: any): TrackingHistory {
-  // The backend stores one description + an `isVisibleToClient` flag. Internal
-  // entries are surfaced (with a lock) to staff but hidden from clients.
-  const visible = h.isVisibleToClient !== false;
   return {
     id: h.id,
     statusName: h.toStatus,
-    descriptionPublic: visible ? h.description : '',
-    descriptionInternal: visible ? null : h.description,
+    description: h.description,
     updatedBy: h.changedByStaffId || '',
     createdAt: h.createdAt,
     updater: h.changedByStaff
@@ -125,7 +121,6 @@ export async function updateApplicationStatus(
     {
       status: payload.status,
       description: payload.descriptionPublic,
-      isVisibleToClient: payload.isVisibleToClient ?? true,
     },
   );
   return mapApplication(data.data);

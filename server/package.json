@@ -1,6 +1,6 @@
 {
   "name": "gudangvisa-backend",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "description": "Document monitoring & tracking system for VISA and KITAS",
   "main": "dist/src/server.js",
@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "seed": "tsx src/scripts/seed.ts",
+    "seed:applications": "tsx src/scripts/seed-applications.ts",
     "check:dups": "tsx src/scripts/find-duplicate-clients.ts",
     "cleanup:dups": "tsx src/scripts/cleanup-duplicate-clients.ts",
     "build": "tsc",

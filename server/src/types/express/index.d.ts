@@ -1,14 +1,12 @@
 // src/types/express/index.d.ts
 
-import type { StaffJwtPayload, ClientJwtPayload } from '../index.ts';
+import type { StaffJwtPayload } from '../index.ts';
 
 declare global {
   namespace Express {
     export interface Request {
       /** Populated by requireStaffAuth middleware */
       staffUser?: StaffJwtPayload;
-      /** Populated by requireClientAuth middleware */
-      clientUser?: ClientJwtPayload;
     }
   }
 }

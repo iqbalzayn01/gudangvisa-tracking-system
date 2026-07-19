@@ -6,6 +6,7 @@ defineProps<{
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'default';
+  loading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -18,7 +19,7 @@ const emit = defineEmits<{
   <Teleport to="body">
     <div
       class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1000] animate-fade-in"
-      @click.self="emit('cancel')"
+      @click.self="!loading && emit('cancel')"
     >
       <div
         class="bg-panel border border-edge rounded-2xl p-7 max-w-md w-[90%] shadow-2xl animate-slide-up"
@@ -29,17 +30,23 @@ const emit = defineEmits<{
         <p class="text-sm text-body leading-relaxed mb-6">{{ message }}</p>
         <div class="flex justify-end gap-2">
           <Button variant="ghost"
-            class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
+            class="px-5 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="loading"
             @click="emit('cancel')"
           >
             {{ cancelText ?? 'Cancel' }}
           </Button>
           <Button variant="ghost"
-            class="px-5 py-2.5 text-sm font-semibold rounded-lg text-white transition-colors cursor-pointer h-auto"
+            class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg text-white transition-colors cursor-pointer h-auto disabled:opacity-70 disabled:cursor-not-allowed"
             :class="variant === 'danger' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-red-500 hover:bg-red-600'"
+            :disabled="loading"
             @click="emit('confirm')"
           >
-            {{ confirmText ?? 'Confirm' }}
+            <span
+              v-if="loading"
+              class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+            />
+            {{ loading ? (confirmText ?? 'Confirm') + '…' : (confirmText ?? 'Confirm') }}
           </Button>
         </div>
       </div>

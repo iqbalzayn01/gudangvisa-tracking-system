@@ -4,18 +4,11 @@ import {
   applications,
   trackingHistory,
   applicationDocuments,
-  notifications,
 } from '../../db/schema.js';
 import { AppError } from '../../utils/AppError.js';
 import type { ChecklistItem } from '../../types/index.js';
 
 type ApplicationStatus = typeof applications.$inferInsert.status;
-
-/** Client-facing notification emitted alongside a write, in the same transaction. */
-export interface NotificationPayload {
-  title: string;
-  message: string;
-}
 
 export class ApplicationsRepository {
   async create(data: typeof applications.$inferInsert) {
@@ -34,7 +27,6 @@ export class ApplicationsRepository {
         toStatus: 'draft',
         description: 'Application created and registered into the system.',
         changedByStaffId: data.assignedStaffId ?? null,
-        isVisibleToClient: true,
       });
 
       return newApp;
@@ -85,16 +77,39 @@ export class ApplicationsRepository {
     });
   }
 
-  async findByClientId(clientId: string) {
-    return await db.query.applications.findMany({
-      where: eq(applications.clientId, clientId),
-      orderBy: (a, { desc }) => [desc(a.createdAt)],
+  /**
+   * Public, no-auth lookup by reference number ("nomor resi"). Returns a
+   * client-safe shape only — no internal staff notes, no full client PII
+   * beyond the owner's name, and documents limited to verified ones.
+   */
+  async findByReferenceNumber(referenceNumber: string) {
+    return await db.query.applications.findFirst({
+      where: eq(applications.referenceNumber, referenceNumber),
+      columns: {
+        id: true,
+        referenceNumber: true,
+        visaType: true,
+        priority: true,
+        status: true,
+        progressPercentage: true,
+        createdAt: true,
+      },
       with: {
+        client: {
+          columns: { fullName: true },
+        },
         trackingHistory: {
           orderBy: (h, { desc }) => [desc(h.createdAt)],
-          where: eq(trackingHistory.isVisibleToClient, true),
+          columns: {
+            id: true,
+            fromStatus: true,
+            toStatus: true,
+            description: true,
+            createdAt: true,
+          },
         },
         documents: {
+          where: eq(applicationDocuments.status, 'verified'),
           columns: {
             id: true,
             documentType: true,
@@ -113,12 +128,9 @@ export class ApplicationsRepository {
       fromStatus: ApplicationStatus;
       toStatus: NonNullable<ApplicationStatus>;
       description: string;
-      isVisibleToClient: boolean;
       staffId: string;
       /** Undefined = keep the current value (terminal/hold statuses). */
       progressPercentage?: number;
-      /** Inserted for the owning client when the change is visible to them. */
-      notification?: NotificationPayload;
     },
   ) {
     return await db.transaction(async (tx) => {
@@ -144,17 +156,7 @@ export class ApplicationsRepository {
         toStatus: data.toStatus,
         description: data.description,
         changedByStaffId: data.staffId,
-        isVisibleToClient: data.isVisibleToClient,
       });
-
-      if (data.notification && data.isVisibleToClient) {
-        await tx.insert(notifications).values({
-          clientId: updated.clientId,
-          applicationId: appId,
-          title: data.notification.title,
-          message: data.notification.message,
-        });
-      }
 
       return updated;
     });
@@ -171,41 +173,29 @@ export class ApplicationsRepository {
       fieldAssistantPhone: string | null;
       biometricScheduledBy: string;
       biometricScheduledAt: Date;
-      notification?: NotificationPayload;
     },
   ) {
-    return await db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(applications)
-        .set({
-          biometricStatus: data.biometricStatus,
-          biometricDate: data.biometricDate,
-          biometricTime: data.biometricTime,
-          biometricLocation: data.biometricLocation,
-          fieldAssistantName: data.fieldAssistantName,
-          fieldAssistantPhone: data.fieldAssistantPhone,
-          biometricScheduledBy: data.biometricScheduledBy,
-          biometricScheduledAt: data.biometricScheduledAt,
-          updatedAt: new Date(),
-        })
-        .where(eq(applications.id, appId))
-        .returning();
+    const [updated] = await db
+      .update(applications)
+      .set({
+        biometricStatus: data.biometricStatus,
+        biometricDate: data.biometricDate,
+        biometricTime: data.biometricTime,
+        biometricLocation: data.biometricLocation,
+        fieldAssistantName: data.fieldAssistantName,
+        fieldAssistantPhone: data.fieldAssistantPhone,
+        biometricScheduledBy: data.biometricScheduledBy,
+        biometricScheduledAt: data.biometricScheduledAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(applications.id, appId))
+      .returning();
 
-      if (!updated) {
-        throw new AppError(404, 'Application not found or failed to update.');
-      }
+    if (!updated) {
+      throw new AppError(404, 'Application not found or failed to update.');
+    }
 
-      if (data.notification) {
-        await tx.insert(notifications).values({
-          clientId: updated.clientId,
-          applicationId: appId,
-          title: data.notification.title,
-          message: data.notification.message,
-        });
-      }
-
-      return updated;
-    });
+    return updated;
   }
 
   /**

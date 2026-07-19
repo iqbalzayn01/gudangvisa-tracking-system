@@ -7,7 +7,6 @@ const ADMIN_EMAIL = 'admin@gudangvisa.com';
 const ADMIN_PASSWORD = 'admin123';
 
 const CLIENT_COUNT = 100;
-const CLIENT_PASSWORD = 'client123';
 
 // Small pools to give the dummy clients varied but deterministic data.
 const FIRST_NAMES = [
@@ -51,8 +50,9 @@ async function seedAdmin(): Promise<void> {
 
 /**
  * Seed 100 demo client accounts (idempotent).
- * All clients share the same password (`client123`). Only the accounts that do
- * not already exist (matched by email) are inserted, so re-running is safe.
+ * Clients have no login (resi-based tracking only) — just contact/profile
+ * data. Only the accounts that do not already exist (matched by email) are
+ * inserted, so re-running is safe.
  */
 async function seedClients(): Promise<void> {
   const emails = Array.from(
@@ -65,8 +65,6 @@ async function seedClients(): Promise<void> {
     columns: { email: true },
   });
   const existingEmails = new Set(existing.map((c) => c.email));
-
-  const passwordHash = await hashPassword(CLIENT_PASSWORD);
 
   const toInsert = [];
   for (let i = 0; i < CLIENT_COUNT; i++) {
@@ -82,7 +80,6 @@ async function seedClients(): Promise<void> {
 
     toInsert.push({
       email,
-      passwordHash,
       fullName: `${firstName} ${lastName}`,
       passportNumber: `P${seq}${(i + 1) * 13}`,
       nationality: NATIONALITIES[i % NATIONALITIES.length]!,
@@ -112,10 +109,6 @@ async function seedClients(): Promise<void> {
     `✅ Seeded ${inserted.length} new demo client(s) ` +
       `(${CLIENT_COUNT - inserted.length} already existed or were skipped).`,
   );
-  console.log(
-    `📧 Logins: client1@gudangvisa.com … client${CLIENT_COUNT}@gudangvisa.com`,
-  );
-  console.log(`🔑 Password (all clients): ${CLIENT_PASSWORD}`);
 }
 
 async function runSeed(): Promise<void> {

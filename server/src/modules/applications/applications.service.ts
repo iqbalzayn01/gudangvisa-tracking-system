@@ -1,5 +1,5 @@
 import { ApplicationsRepository } from './applications.repository.js';
-import type { NotificationPayload } from './applications.repository.js';
+import { ClientAccountsRepository } from '../client-accounts/client-accounts.repository.js';
 import { AppError } from '../../utils/AppError.js';
 import { deleteStorageFiles } from '../../utils/storage.js';
 import type {
@@ -75,26 +75,6 @@ const STATUS_PROGRESS: Partial<Record<ApplicationStatus, number>> = {
   completed: 100,
 };
 
-/** Human-readable status labels used in client notifications. */
-const STATUS_LABELS: Record<ApplicationStatus, string> = {
-  draft: 'Draft',
-  document_collection: 'Document Collection',
-  document_verification: 'Document Verification',
-  document_revision: 'Document Revision',
-  submission_to_immigration: 'Submitted to Immigration',
-  immigration_review: 'Immigration Review',
-  biometric_scheduled: 'Biometric Scheduled',
-  biometric_completed: 'Biometric Completed',
-  immigration_processing: 'Immigration Processing',
-  approval_pending: 'Approval Pending',
-  approved: 'Approved',
-  evisa_issued: 'e-Visa Issued',
-  completed: 'Completed',
-  rejected: 'Rejected',
-  cancelled: 'Cancelled',
-  on_hold: 'On Hold',
-};
-
 const MAX_REFERENCE_ATTEMPTS = 3;
 
 /** Postgres unique-violation (SQLSTATE 23505), directly or via error.cause. */
@@ -106,25 +86,36 @@ function isUniqueViolation(error: unknown): boolean {
 
 export class ApplicationsService {
   private repository = new ApplicationsRepository();
+  private clientRepository = new ClientAccountsRepository();
+
+  /** Last 4 digits of the client's phone number, used as the reference suffix. */
+  private phoneSuffix(phone: string | null | undefined): string {
+    const digits = (phone ?? '').replace(/\D/g, '');
+    return digits.length >= 4 ? digits.slice(-4) : digits.padStart(4, '0');
+  }
 
   /**
-   * Generate reference number: GV-YYYY-NNNNN
+   * Generate reference number: GV-YYYY-NNNNN-PPPP, where NNNNN is a random
+   * application number and PPPP is the client's own phone-number suffix.
    */
-  private generateReferenceNumber(): string {
+  private generateReferenceNumber(phoneSuffix: string): string {
     const year = new Date().getFullYear();
     const random = Math.floor(10000 + Math.random() * 90000);
-    return `GV-${year}-${random}`;
+    return `GV-${year}-${random}-${phoneSuffix}`;
   }
 
   async createApplication(data: CreateApplicationInput, staffId: string) {
     const checklist = DEFAULT_CHECKLIST[data.visaType] ?? [];
+    const client = await this.clientRepository.findById(data.clientId);
+    if (!client) throw new AppError(404, 'Client not found.');
+    const phoneSuffix = this.phoneSuffix(client.phone);
 
-    // The random reference can collide (unique column) — retry with a fresh
+    // The random part can collide (unique column) — retry with a fresh
     // number instead of surfacing a 500.
     for (let attempt = 1; ; attempt++) {
       try {
         return await this.repository.create({
-          referenceNumber: this.generateReferenceNumber(),
+          referenceNumber: this.generateReferenceNumber(phoneSuffix),
           clientId: data.clientId,
           assignedStaffId: staffId,
           visaType: data.visaType,
@@ -174,13 +165,8 @@ export class ApplicationsService {
       fromStatus: app.status,
       toStatus: data.status,
       description: data.description,
-      isVisibleToClient: data.isVisibleToClient,
       staffId,
       ...(progressPercentage !== undefined && { progressPercentage }),
-      notification: {
-        title: `Application update: ${STATUS_LABELS[data.status]}`,
-        message: data.description,
-      },
     });
   }
 
@@ -192,8 +178,6 @@ export class ApplicationsService {
     const app = await this.repository.findById(appId);
     if (!app) throw new AppError(404, 'Application not found.');
 
-    const notification = this.buildBiometricNotification(data);
-
     return await this.repository.updateBiometric(appId, {
       biometricStatus: data.biometricStatus,
       biometricDate: data.biometricDate ?? null,
@@ -203,35 +187,7 @@ export class ApplicationsService {
       fieldAssistantPhone: data.fieldAssistantPhone ?? null,
       biometricScheduledBy: staffId,
       biometricScheduledAt: new Date(),
-      ...(notification && { notification }),
     });
-  }
-
-  /** Client notification for appointment-relevant biometric changes only. */
-  private buildBiometricNotification(
-    data: UpdateBiometricInput,
-  ): NotificationPayload | null {
-    const titles: Partial<Record<UpdateBiometricInput['biometricStatus'], string>> = {
-      scheduled: 'Biometric appointment scheduled',
-      rescheduled: 'Biometric appointment rescheduled',
-      cancelled: 'Biometric appointment cancelled',
-    };
-    const title = titles[data.biometricStatus];
-    if (!title) return null;
-
-    if (data.biometricStatus === 'cancelled') {
-      return { title, message: 'Your biometric appointment has been cancelled.' };
-    }
-
-    const parts = [
-      data.biometricDate && `on ${data.biometricDate}`,
-      data.biometricTime && `at ${data.biometricTime}`,
-      data.biometricLocation && `— ${data.biometricLocation}`,
-    ].filter(Boolean);
-    return {
-      title,
-      message: `Your biometric appointment is ${parts.length ? parts.join(' ') : 'being arranged'}.`,
-    };
   }
 
   async toggleChecklistItem(
@@ -248,8 +204,11 @@ export class ApplicationsService {
     );
   }
 
-  async getApplicationsByClientId(clientId: string) {
-    return await this.repository.findByClientId(clientId);
+  /** Public, no-auth lookup by reference number ("nomor resi"). */
+  async trackByReferenceNumber(referenceNumber: string) {
+    const app = await this.repository.findByReferenceNumber(referenceNumber);
+    if (!app) throw new AppError(404, 'Application not found.');
+    return app;
   }
 
   async deleteApplication(appId: string) {

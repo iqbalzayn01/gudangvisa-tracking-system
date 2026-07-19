@@ -1,9 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import type {
-  ApiResponse,
-  StaffJwtPayload,
-  ClientJwtPayload,
-} from '../types/index.js';
+import type { ApiResponse, StaffJwtPayload } from '../types/index.js';
 import { AppError } from './AppError.js';
 
 type AsyncRouteHandler<P> = (
@@ -45,12 +41,4 @@ export function getStaffUser(req: {
 }): StaffJwtPayload {
   if (!req.staffUser) throw new AppError(401, 'Staff auth required.');
   return req.staffUser;
-}
-
-/** Return the authenticated client user (see getStaffUser). */
-export function getClientUser(req: {
-  clientUser?: ClientJwtPayload;
-}): ClientJwtPayload {
-  if (!req.clientUser) throw new AppError(401, 'Client auth required.');
-  return req.clientUser;
 }
