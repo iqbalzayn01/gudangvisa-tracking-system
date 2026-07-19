@@ -12,8 +12,10 @@ export default {
       'Enter your tracking code to see the current status and the full history of your immigration document.',
   },
   tracking: {
-    cta: 'Log In to Check Documents',
-    note: 'Sign in to your client portal to view the latest status and full history of your immigration documents.',
+    cta: 'Track Documents',
+    placeholder: 'Enter your reference number (GV-2026-xxxxx)',
+    note: 'Enter the reference number you received at registration to see the latest status and download completed documents — no login needed.',
+    empty: 'Reference number is required.',
   },
   services: {
     title: 'Our Main Services',

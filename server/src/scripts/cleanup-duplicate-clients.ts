@@ -6,15 +6,14 @@ import {
   applications,
   applicationDocuments,
   clientAccounts,
-  notifications,
 } from '../db/schema.js';
 import { deleteStorageFiles } from '../utils/storage.js';
 
 /**
  * DESTRUCTIVE cleanup of duplicate-name client accounts.
  *
- * Per duplicate full-name group it keeps ONE row (most applications, then most
- * notifications, then lowest email) and deletes the rest. A full JSON backup of
+ * Per duplicate full-name group it keeps ONE row (most applications, then
+ * lowest email) and deletes the rest. A full JSON backup of
  * every deleted row is written BEFORE deletion so the change is recoverable.
  * The delete runs in a single transaction; the deleted clients' document files
  * are then removed from Supabase Storage (the DB cascade can't reach the bucket).
@@ -30,7 +29,6 @@ type Row = {
   fullName: string;
   email: string;
   appCount: number;
-  notifCount: number;
 };
 
 async function run(): Promise<void> {
@@ -40,15 +38,9 @@ async function run(): Promise<void> {
       fullName: clientAccounts.fullName,
       email: clientAccounts.email,
       appCount: sql<number>`count(distinct ${applications.id})`.mapWith(Number),
-      notifCount:
-        sql<number>`count(distinct ${notifications.id})`.mapWith(Number),
     })
     .from(clientAccounts)
     .leftJoin(applications, sql`${applications.clientId} = ${clientAccounts.id}`)
-    .leftJoin(
-      notifications,
-      sql`${notifications.clientId} = ${clientAccounts.id}`,
-    )
     .groupBy(clientAccounts.id, clientAccounts.fullName, clientAccounts.email);
 
   const groups = new Map<string, Row[]>();
@@ -61,10 +53,7 @@ async function run(): Promise<void> {
   for (const g of groups.values()) {
     if (g.length < 2) continue;
     const [, ...losers] = [...g].sort(
-      (a, b) =>
-        b.appCount - a.appCount ||
-        b.notifCount - a.notifCount ||
-        a.email.localeCompare(b.email),
+      (a, b) => b.appCount - a.appCount || a.email.localeCompare(b.email),
     );
     loserIds.push(...losers.map((l) => l.id));
   }
@@ -74,8 +63,7 @@ async function run(): Promise<void> {
     return;
   }
 
-  // Full backup of the rows about to be deleted (includes password_hash so the
-  // delete is fully recoverable).
+  // Full backup of the rows about to be deleted so the delete is recoverable.
   const doomed = await db
     .select()
     .from(clientAccounts)

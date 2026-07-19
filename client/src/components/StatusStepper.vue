@@ -19,6 +19,11 @@ const currentIdx = computed(() => {
   const phase = phaseOf(props.currentStatus);
   return steps.findIndex((s) => s.key === phase);
 });
+
+// The application is fully finished — there's no further step to be "in
+// progress" toward, so the last dot (Completed) reads as done, not current.
+const isFinished = computed(() => props.currentStatus === 'completed');
+
 </script>
 
 <template>
@@ -40,7 +45,7 @@ const currentIdx = computed(() => {
           <div
             class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300"
             :class="[
-              currentIdx >= 0 && idx < currentIdx
+              currentIdx >= 0 && (idx < currentIdx || (idx === currentIdx && isFinished))
                 ? 'bg-emerald-500 border-emerald-500 text-white'
                 : currentIdx >= 0 && idx === currentIdx
                   ? 'bg-red-500 border-red-500 text-white ring-4 ring-red-500/20'
@@ -48,7 +53,7 @@ const currentIdx = computed(() => {
             ]"
           >
             <svg
-              v-if="currentIdx >= 0 && idx < currentIdx"
+              v-if="currentIdx >= 0 && (idx < currentIdx || (idx === currentIdx && isFinished))"
               xmlns="http://www.w3.org/2000/svg"
               width="16"
               height="16"

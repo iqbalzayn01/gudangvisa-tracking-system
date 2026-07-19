@@ -84,16 +84,23 @@ export class ApplicationDocumentsService {
   }
 
   /**
-   * Generate a temporary signed download URL for a document, but only if it
-   * belongs to the requesting client. Used by the client tracking portal to
-   * download completed documents (e-Visa PDFs, etc.).
+   * Generate a temporary signed download URL for a document via the public,
+   * no-auth resi tracking flow. Only issued when the reference number
+   * matches the document's own application, the application is fully
+   * `completed`, and the document itself is `verified` — anything else 404s
+   * with a generic message (don't leak *why* it was refused).
    */
-  async getClientDownloadUrl(documentId: string, clientId: string) {
-    const doc = await this.repository.findByIdWithOwner(documentId);
-    if (!doc) throw new AppError(404, 'Document not found.');
+  async getPublicDownloadUrl(referenceNumber: string, documentId: string) {
+    const doc = await this.repository.findByIdWithApplicationMeta(documentId);
 
-    if (doc.application?.clientId !== clientId) {
-      throw new AppError(403, 'You do not have access to this document.');
+    const eligible =
+      doc &&
+      doc.application?.referenceNumber === referenceNumber &&
+      doc.application?.status === 'completed' &&
+      doc.status === 'verified';
+
+    if (!eligible) {
+      throw new AppError(404, 'Document not found.');
     }
 
     const downloadUrl = await createSignedDownloadUrl(doc.filePath);

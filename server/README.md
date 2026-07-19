@@ -1,8 +1,8 @@
 # Gudang Visa Backend
 
-A REST API for the Gudang Visa Tracking System. Internal staff/admins manage immigration applications (VISA / KITAS), and external clients log in to track their own document processing and download completed files (e-Visa, etc.).
+A REST API for the Gudang Visa Tracking System. Internal staff/admins manage immigration applications (VISA / KITAS) through an authenticated dashboard; external clients need **no account** — they track and download their own completed documents via a small set of public, rate-limited endpoints keyed by the application's reference number.
 
-The API exposes an optimized **7-table** Drizzle schema, **dual-table authentication** (internal staff vs. external clients, fully isolated), and routes under **`/api/...`**. Client data isolation is enforced at the **application layer** (ownership-checked queries on the logged-in `client_id`), not Postgres Row Level Security. The authoritative schema lives in [`src/db/schema.ts`](./src/db/schema.ts).
+The API exposes an optimized **6-table** Drizzle schema, a single **staff/admin JWT session**, and routes under **`/api/...`**. The authoritative schema lives in [`src/db/schema.ts`](./src/db/schema.ts).
 
 ## Table of Contents
 
@@ -51,38 +51,37 @@ src/
 │   └── supabase.ts           # Supabase client (service role) + bucket name
 ├── db/
 │   ├── index.ts              # Database connection
-│   └── schema.ts             # 7-table definitions, enums, indexes, and relations
+│   └── schema.ts             # 6-table definitions, enums, indexes, and relations
 ├── middlewares/
-│   ├── auth.middleware.ts     # requireStaffAuth / requireClientAuth (JWT, HS256-pinned)
+│   ├── auth.middleware.ts     # requireStaffAuth (JWT, HS256-pinned)
 │   ├── role.middleware.ts     # authorizeRoles('admin', 'staff')
-│   ├── rate-limit.middleware.ts # apiLimiter (global) + authLimiter (login only)
+│   ├── rate-limit.middleware.ts # apiLimiter (global) + authLimiter (login) + trackingLimiter (public resi lookup/download)
 │   ├── error.middleware.ts    # Global error handler
 │   └── validate.middleware.ts # Zod request validation
 ├── modules/                  # Feature modules: controller · service · repository · routes · validation
 │   ├── auth-internal/        # Staff/admin login + refresh + logout
-│   ├── auth-client/          # Client login + refresh + logout
 │   ├── staff-accounts/       # Staff/admin management
-│   ├── client-accounts/      # Client account management
-│   ├── applications/         # Core workflow (status, biometric, checklist) + client view
-│   ├── application-documents/# Upload/verify/delete + client download
-│   ├── audit-logs/           # Audit trail (admin viewer, action/entity filters)
-│   └── notifications/        # Client notifications (created on status/biometric changes)
+│   ├── client-accounts/      # Client contact-record management (no login)
+│   ├── applications/         # Core workflow (status, biometric, checklist) + public resi tracking
+│   ├── application-documents/# Upload/verify/delete + public resi-scoped download
+│   └── audit-logs/           # Audit trail (admin viewer, action/entity filters)
 ├── scripts/
-│   ├── seed.ts               # Idempotent seeder (admin + 100 demo clients, unique names)
+│   ├── seed.ts                       # Idempotent seeder (admin + 100 demo clients, unique names)
+│   ├── seed-applications.ts          # Idempotent: 50 demo applications (2024–2026) w/ uploaded dummy docs
 │   ├── find-duplicate-clients.ts     # Read-only duplicate report (npm run check:dups)
 │   ├── analyze-duplicate-clients.ts  # Read-only keeper/loser analysis per dup group
 │   └── cleanup-duplicate-clients.ts  # Destructive dedupe w/ backup (npm run cleanup:dups)
 ├── types/
-│   ├── index.ts              # Shared types (ApiResponse, StaffJwtPayload, ClientJwtPayload, ChecklistItem)
-│   └── express/index.d.ts    # Express Request augmentation (staffUser / clientUser)
+│   ├── index.ts              # Shared types (ApiResponse, StaffJwtPayload, ChecklistItem)
+│   └── express/index.d.ts    # Express Request augmentation (staffUser)
 └── utils/
     ├── AppError.ts           # Custom error class
     ├── audit.ts              # recordAudit() helper + client IP extraction
-    ├── handler.ts            # asyncHandler / sendSuccess / getStaffUser / getClientUser
+    ├── handler.ts            # asyncHandler / sendSuccess / getStaffUser
     ├── jwt.ts                # Token generation + refresh cookie helpers (HS256 pinned)
     ├── password.ts           # bcrypt hashing (12 rounds) + timing-equalization helper
-    ├── validation.ts         # Shared login schema (staff + client)
-    └── storage.ts            # Supabase Storage helpers (signed up/download URLs, bulk cleanup)
+    ├── validation.ts         # Shared staff login schema
+    └── storage.ts            # Supabase Storage helpers (signed up/download URLs, direct upload for scripts, bulk cleanup)
 ```
 
 > `api/index.ts` (repo root) is the Vercel serverless entry — it re-exports the Express app.
@@ -201,6 +200,7 @@ The server starts at `http://localhost:8000`.
 | `npm run build`        | Compile TypeScript to `dist/`              |
 | `npm start`            | Run the compiled production build          |
 | `npm run seed`         | Seed admin + 100 demo clients (idempotent; skips rows whose email **or name** already exists) |
+| `npm run seed:applications` | Seed 50 demo Visa/KITAS applications spanning 2024–2026, each with an uploaded dummy document (idempotent) |
 | `npm run check:dups`   | Read-only report of duplicate client names/emails |
 | `npm run cleanup:dups` | **Destructive** dedupe of duplicate-name clients (JSON backup to `backups/` first; add `-- --dry-run` to preview). Also removes the deleted clients' files from Storage |
 | `npm run db:generate`  | Generate database migration files          |
@@ -212,23 +212,22 @@ The server starts at `http://localhost:8000`.
 
 ## Database Schema
 
-The schema has **7 tables**, defined in [`src/db/schema.ts`](./src/db/schema.ts). Biometric scheduling (a 1-to-1 relation) and the verification checklist (as JSONB) are merged into `applications` to eliminate JOIN overhead.
+The schema has **6 tables**, defined in [`src/db/schema.ts`](./src/db/schema.ts). Biometric scheduling (a 1-to-1 relation) and the verification checklist (as JSONB) are merged into `applications` to eliminate JOIN overhead.
 
 | Table                   | Purpose                                                                                  |
 | ----------------------- | ---------------------------------------------------------------------------------------- |
 | `staff_accounts`        | Internal admin/staff accounts (`role`: `admin` \| `staff`)                               |
-| `client_accounts`       | External client accounts (email, passport, nationality, phone). Full name is **unique** (case-/whitespace-insensitive index) |
+| `client_accounts`       | External client **contact records** (email, passport, nationality, phone) — no login/password. Full name is **unique** (case-/whitespace-insensitive index) |
 | `applications`          | Core record: reference number, visa type, status, auto-computed progress %, `checklist` (JSONB), and merged biometric fields |
 | `application_documents` | Uploaded documents (type, file path, verification status)                                |
-| `tracking_history`      | Status-change timeline (`fromStatus` → `toStatus`, `isVisibleToClient`)                  |
-| `notifications`         | Per-client notifications                                                                 |
+| `tracking_history`      | Status-change timeline (`fromStatus` → `toStatus`), all entries public                   |
 | `audit_logs`            | Staff/admin action log (actor, action, entity, old/new values, IP)                       |
 
 **Native enums:** `internal_role`, `application_status` (16 stages, `draft` → `completed`/`rejected`/`cancelled`/`on_hold`), `visa_type` (`B211A`, `KITAS_WORKING`, `KITAS_SPOUSE`, `KITAS_INVESTOR`, `KITAS_RETIREMENT`), `priority` (`low` \| `medium` \| `high` \| `urgent`), `document_type` (core: `passport`, `photo`, `sponsor_letter`, `company_nib`, `bank_statement`, `rejection_letter`, `final_evisa`; KITAS professional docs: `marriage_certificate`, `insurance_certificate`, `rptka`, `notifikasi`, `vitas_telex`, `dkptka_payment`, `domicile_certificate`, `diploma_certificate`, `cv_resume`, `kitas_card`, `other`), `document_status` (`pending` \| `verified` \| `rejected`), `biometric_status` (`not_scheduled` \| `scheduled` \| `completed` \| `rescheduled` \| `cancelled` \| `no_show`).
 
 `application_documents` also tracks document validity via `issued_date` and `expiry_date` (used by the expiry-monitoring endpoint). The `applications.checklist` JSONB holds an array of `{ name, isChecked, checkedAt?, checkedByStaffId? }`.
 
-**Indexes:** besides the unique columns, hot filter paths are indexed — `applications(client_id, status)`, `application_documents(application_id, expiry_date)`, `tracking_history(application_id)`, `notifications(client_id, application_id)`, and `audit_logs(created_at, action+entity_type)` (each as separate single/composite indexes; see `schema.ts`).
+**Indexes:** besides the unique columns, hot filter paths are indexed — `applications(client_id, status)`, `application_documents(application_id, expiry_date)`, `tracking_history(application_id)`, and `audit_logs(created_at, action+entity_type)` (each as separate single/composite indexes; see `schema.ts`).
 
 > Known gap: `client_accounts.passport_number` is **not** unique — add a unique index only after checking existing data for duplicates.
 
@@ -236,21 +235,20 @@ The schema has **7 tables**, defined in [`src/db/schema.ts`](./src/db/schema.ts)
 
 ## Authentication
 
-Two **independent** dual-table sessions, signed with [`jose`](https://github.com/panva/jose):
+A single staff/admin JWT session, signed with [`jose`](https://github.com/panva/jose). Clients are never issued a session — the public tracking/download routes don't require one.
 
-| Domain | Login                            | Refresh                            | Token payload                                    |
-| ------ | -------------------------------- | ---------------------------------- | ------------------------------------------------ |
-| Staff  | `POST /api/auth/internal/login`  | `POST /api/auth/internal/refresh`  | `{ id, fullName, email, role, accountType: 'internal' }` |
-| Client | `POST /api/auth/client/login`    | `POST /api/auth/client/refresh`    | `{ id, fullName, email, accountType: 'client' }`         |
+| Login                             | Refresh                            | Token payload                                    |
+| ---------------------------------- | ----------------------------------- | ------------------------------------------------ |
+| `POST /api/auth/internal/login`   | `POST /api/auth/internal/refresh`  | `{ id, fullName, email, role, accountType: 'internal' }` |
 
 - **Access token** — 15 minutes, signed with `JWT_SECRET`, returned in the response body (the frontend keeps it in memory/Pinia). Send it as `Authorization: Bearer <token>`.
 - **Refresh token** — 7 days, signed with `JWT_REFRESH_SECRET`, set as an httpOnly cookie named **`gv_refresh_token`** (`secure` in production, `sameSite: 'strict'`, `path: '/api'`). **Rotated on every `/refresh`** — each refresh response sets a new cookie, shrinking the replay window of a stolen token.
 - All JWT verification is **pinned to HS256**; `JWT_SECRET` / `JWT_REFRESH_SECRET` are mandatory (the server refuses to boot without them).
-- **Login hardening:** unknown emails burn the same bcrypt cost as a wrong password (no timing-based user enumeration), and both cases return the identical `401 Invalid credentials.`; account-deactivated (`403`) is only disclosed after the password verifies. Both staff **and client** logins are written to the audit log.
-- Middleware: `requireStaffAuth` (verifies `accountType === 'internal'`, populates `req.staffUser`) and `requireClientAuth` (verifies `accountType === 'client'`, populates `req.clientUser`). Admin-only routes additionally pass through `authorizeRoles('admin')`.
+- **Login hardening:** unknown emails burn the same bcrypt cost as a wrong password (no timing-based user enumeration), and both cases return the identical `401 Invalid credentials.`; account-deactivated (`403`) is only disclosed after the password verifies. Logins are written to the audit log.
+- Middleware: `requireStaffAuth` (verifies `accountType === 'internal'`, populates `req.staffUser`). Admin-only routes additionally pass through `authorizeRoles('admin')`.
 - `app.set('trust proxy', 1)` is enabled so `req.ip` resolves the real client IP behind Vercel/Nginx (used for audit logging and rate limiting).
 
-**Rate limiting:** 100 requests / 15 min per IP across `/api`; a stricter 20 / 15 min on the **login endpoints only** (`/refresh` is exempt so many open tabs behind one office IP can't lock out logins).
+**Rate limiting:** 100 requests / 15 min per IP across `/api`; a stricter 20 / 15 min on the **login endpoint** (`/refresh` is exempt so many open tabs behind one office IP can't lock out logins); the same 20 / 15 min limit also applies to the **public resi tracking/download endpoints** (`trackingLimiter`) since reference numbers are guessable without an account behind them.
 
 ---
 
@@ -267,18 +265,15 @@ Auth column: **Public** (no token), **Staff** (`admin` or `staff`), **Admin** (a
 ### Auth
 
 | Method | Endpoint                       | Auth   | Body / Notes                          |
-| ------ | ------------------------------ | ------ | ------------------------------------- |
+| ------ | ------------------------------- | ------ | ------------------------------------- |
 | POST   | `/api/auth/internal/login`     | Public | `{ email, password }` → staff session |
 | POST   | `/api/auth/internal/refresh`   | Public | Reads `gv_refresh_token` cookie       |
 | POST   | `/api/auth/internal/logout`    | Public | Clears the refresh cookie             |
-| POST   | `/api/auth/client/login`       | Public | `{ email, password }` → client session |
-| POST   | `/api/auth/client/refresh`     | Public | Reads `gv_refresh_token` cookie       |
-| POST   | `/api/auth/client/logout`      | Public | Clears the refresh cookie             |
 
 ### Staff Accounts
 
 | Method | Endpoint                    | Auth  | Body / Notes                                            |
-| ------ | --------------------------- | ----- | ------------------------------------------------------- |
+| ------ | ---------------------------- | ----- | --------------------------------------------------------- |
 | GET    | `/api/staff-accounts/me`    | Staff | Current staff/admin profile                             |
 | POST   | `/api/staff-accounts`       | Admin | `{ fullName, email, password, role?, phone? }`          |
 | GET    | `/api/staff-accounts`       | Admin | List all staff/admin accounts                           |
@@ -286,9 +281,11 @@ Auth column: **Public** (no token), **Staff** (`admin` or `staff`), **Admin** (a
 
 ### Client Accounts
 
+Client records have no login/password — they're staff-managed contact data used to own applications.
+
 | Method | Endpoint                     | Auth  | Body / Notes                                                       |
-| ------ | ---------------------------- | ----- | ----------------------------------------------------------------- |
-| POST   | `/api/client-accounts`       | Staff | `{ fullName, email, password, passportNumber, nationality, phone? }` |
+| ------ | ----------------------------- | ----- | ------------------------------------------------------------------- |
+| POST   | `/api/client-accounts`       | Staff | `{ fullName, email, passportNumber, nationality, phone? }`          |
 | GET    | `/api/client-accounts`       | Staff | List all clients                                                  |
 | GET    | `/api/client-accounts/:id`   | Staff | Get one client                                                    |
 | PATCH  | `/api/client-accounts/:id`   | Admin | `{ fullName?, nationality?, phone? }` (email/passport not editable) |
@@ -297,48 +294,38 @@ Auth column: **Public** (no token), **Staff** (`admin` or `staff`), **Admin** (a
 ### Applications
 
 | Method | Endpoint                                   | Auth   | Body / Notes                                                                 |
-| ------ | ------------------------------------------ | ------ | --------------------------------------------------------------------------- |
-| POST   | `/api/applications`                        | Staff  | `{ clientId, visaType, priority?, notes? }` — generates a unique reference number (auto-retry on collision) |
+| ------ | -------------------------------------------- | ------ | ------------------------------------------------------------------------------- |
+| POST   | `/api/applications`                        | Staff  | `{ clientId, visaType, priority?, notes? }` — generates a reference number `GV-YYYY-NNNNN-PPPP` (random 5 digits + the client's own phone-number suffix; auto-retry on collision) |
 | GET    | `/api/applications`                        | Staff  | List all applications                                                       |
 | GET    | `/api/applications/:id`                    | Staff  | Application detail (documents, tracking history)                            |
-| PATCH  | `/api/applications/:id/status`             | Staff  | `{ status, description, isVisibleToClient? }` — in one transaction: updates status + progress %, appends tracking history, and (when visible) creates a client notification |
-| PATCH  | `/api/applications/:id/biometric`          | Staff  | `{ biometricStatus, biometricDate? (YYYY-MM-DD), biometricTime? (HH:MM), biometricLocation?, fieldAssistantName?, fieldAssistantPhone? }` — scheduling/rescheduling/cancelling notifies the client |
+| PATCH  | `/api/applications/:id/status`             | Staff  | `{ status, description }` — in one transaction: updates status + progress %, appends a tracking-history entry (always public) |
+| PATCH  | `/api/applications/:id/biometric`          | Staff  | `{ biometricStatus, biometricDate? (YYYY-MM-DD), biometricTime? (HH:MM), biometricLocation?, fieldAssistantName?, fieldAssistantPhone? }` |
 | PATCH  | `/api/applications/:id/checklist`          | Staff  | `{ itemIndex, isChecked }` — toggles one JSONB checklist item atomically (row-locked) |
 | DELETE | `/api/applications/:id`                    | Admin  | Delete an application (and its documents/history/files)                     |
-| GET    | `/api/applications/client/my-applications` | Client | The logged-in client's own applications                                    |
+| GET    | `/api/applications/track/:referenceNumber` | Public | Status + full tracking history + verified documents for that application (rate-limited via `trackingLimiter`) |
 
 ### Documents
 
 > Mounted at `/api/documents`. Uploads use signed URLs — files go directly from the browser to Supabase Storage. See [Documents & Storage](#documents--storage).
 
 | Method | Endpoint                                 | Auth   | Body / Notes                                                       |
-| ------ | ---------------------------------------- | ------ | ----------------------------------------------------------------- |
+| ------ | ------------------------------------------ | ------ | --------------------------------------------------------------------- |
 | POST   | `/api/documents/upload-url`              | Staff  | `{ fileName, contentType, fileSize? }` (zod-validated: JPG/PNG/PDF, ≤ 2 MB) → `{ signedUrl, storagePath, token }` |
 | POST   | `/api/documents`                         | Staff  | `{ applicationId, documentType, fileName, storagePath, issuedDate?, expiryDate? }` |
 | GET    | `/api/documents/application/:applicationId` | Staff | Documents for an application (+ temporary signed download URLs)   |
 | GET    | `/api/documents/expiring?days=30`        | Staff  | Documents expiring within N days (or already expired) for monitoring |
 | PATCH  | `/api/documents/:id/verify`              | Staff  | `{ status: 'verified' \| 'rejected', rejectionReason? }`          |
 | DELETE | `/api/documents/:id`                     | Admin  | Delete a document and its storage file                            |
-| GET    | `/api/documents/client/:id/download`     | Client | Signed download URL for a document the client owns (ownership-verified, `DOWNLOAD` audit-logged) |
+| GET    | `/api/documents/track/:referenceNumber/documents/:documentId/download` | Public | Signed download URL — only issued once the application is `completed` and the document is `verified`; rate-limited via `trackingLimiter` |
 
 ### Audit Logs
 
 | Method | Endpoint                                | Auth  | Notes                                          |
-| ------ | --------------------------------------- | ----- | ---------------------------------------------- |
+| ------ | ------------------------------------------ | ----- | ------------------------------------------------- |
 | GET    | `/api/audit-logs?action=&entity=`       | Admin | Audit trail, filterable by action and entity   |
 | GET    | `/api/audit-logs/:id`                   | Admin | Single audit-log entry                         |
 
-### Notifications
-
-Notifications are **created automatically** for the owning client when staff change an application's status (if `isVisibleToClient`) or schedule / reschedule / cancel a biometric appointment — in the same DB transaction as the change itself.
-
-| Method | Endpoint                          | Auth   | Notes                              |
-| ------ | --------------------------------- | ------ | ---------------------------------- |
-| GET    | `/api/notifications`              | Client | The logged-in client's notifications |
-| PATCH  | `/api/notifications/:id/read`     | Client | Mark a notification as read (ownership enforced in the UPDATE itself) |
-
 ---
-
 ## Audit Trail
 
 Staff/admin actions are recorded through a shared `recordAudit` helper ([`src/utils/audit.ts`](./src/utils/audit.ts)) capturing actor, action, entity, optional old/new values, and IP (honoring `X-Forwarded-For` behind the trusted proxy). Audit writes never break the main request — failures are logged and swallowed.
@@ -369,14 +356,15 @@ Clients download their own files via `GET /api/documents/client/:id/download`, w
 
 ## Seeding
 
-`npm run seed` is **idempotent** — it creates the bootstrap admin if missing, then inserts 100 demo client accounts with **unique full names**, skipping any that already exist (matched by email, or by name via `ON CONFLICT DO NOTHING` against the unique-name index). Passwords are hashed with `bcryptjs` (12 rounds).
+`npm run seed` is **idempotent** — it creates the bootstrap admin if missing, then inserts 100 demo client contact records with **unique full names** (no login/password), skipping any that already exist (matched by email, or by name via `ON CONFLICT DO NOTHING` against the unique-name index). The admin password is hashed with `bcryptjs` (12 rounds).
 
-| Account | Email                                    | Password    |
-| ------- | ---------------------------------------- | ----------- |
-| Admin   | `admin@gudangvisa.com`                   | `admin123`  |
-| Clients | `client1@gudangvisa.com` … `client100@…` | `client123` |
+| Account | Email                   | Password    |
+| ------- | ------------------------ | ----------- |
+| Admin   | `admin@gudangvisa.com`  | `admin123`  |
 
-> **Important:** Change the seeded passwords before using this in production. The demo clients are intended for local development and testing of the client tracking portal.
+`npm run seed:applications` is also **idempotent** — it seeds 50 demo Visa/KITAS applications dated across 2024–2026 (status realistically skewed by age), each with a real uploaded dummy PDF from `client/public/content/` attached as a document. Requires `npm run seed` to have run first.
+
+> **Important:** Change the seeded admin password before using this in production.
 
 ---
 

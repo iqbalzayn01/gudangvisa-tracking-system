@@ -1,10 +1,5 @@
 import { ApplicationDocumentsService } from './application-documents.service.js';
-import {
-  asyncHandler,
-  sendSuccess,
-  getStaffUser,
-  getClientUser,
-} from '../../utils/handler.js';
+import { asyncHandler, sendSuccess, getStaffUser } from '../../utils/handler.js';
 import { recordAudit } from '../../utils/audit.js';
 
 export class ApplicationDocumentsController {
@@ -72,22 +67,24 @@ export class ApplicationDocumentsController {
     sendSuccess(res, 200, `Document ${req.body.status} successfully.`, result);
   });
 
-  getClientDownloadUrl = asyncHandler<{ id: string }>(async (req, res) => {
-    const client = getClientUser(req);
-    const result = await this.service.getClientDownloadUrl(
-      req.params.id,
-      client.id,
+  getPublicDownload = asyncHandler<{
+    referenceNumber: string;
+    documentId: string;
+  }>(async (req, res) => {
+    const result = await this.service.getPublicDownloadUrl(
+      req.params.referenceNumber,
+      req.params.documentId,
     );
 
-    // Client downloads are part of the audit trail (staffId stays null).
+    // Public downloads still land in the audit trail (staffId stays null).
     await recordAudit(req, {
       action: 'DOWNLOAD',
       entityType: 'document',
       applicationId: result.applicationId,
       newValues: {
-        documentId: req.params.id,
+        documentId: req.params.documentId,
         fileName: result.fileName,
-        clientId: client.id,
+        referenceNumber: req.params.referenceNumber,
       },
     });
 

@@ -5,9 +5,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { ENV } from './config/env.js';
 
-// Route Imports — Authentication (Dual-Table)
+// Route Imports — Authentication
 import authInternalRoutes from './modules/auth-internal/auth-internal.routes.js';
-import authClientRoutes from './modules/auth-client/auth-client.routes.js';
 
 // Route Imports — Staff-Managed Modules
 import staffAccountRoutes from './modules/staff-accounts/staff-accounts.routes.js';
@@ -15,9 +14,6 @@ import clientAccountRoutes from './modules/client-accounts/client-accounts.route
 import applicationRoutes from './modules/applications/applications.routes.js';
 import applicationDocumentRoutes from './modules/application-documents/application-documents.routes.js';
 import auditLogRoutes from './modules/audit-logs/audit-logs.routes.js';
-
-// Route Imports — Client-Facing Modules
-import notificationRoutes from './modules/notifications/notifications.routes.js';
 
 // Middleware Imports
 import { globalErrorHandler } from './middlewares/error.middleware.js';
@@ -74,25 +70,21 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // ==========================================
-// API ROUTES — Authentication (Separated Endpoints)
-// (the stricter authLimiter is applied to /login inside each router)
+// API ROUTES — Authentication
+// (the stricter authLimiter is applied to /login inside the router)
 // ==========================================
 app.use('/api/auth/internal', authInternalRoutes);
-app.use('/api/auth/client', authClientRoutes);
 
 // ==========================================
 // API ROUTES — Internal Staff Modules
+// (applications/documents also expose a few public, no-auth tracking routes
+// — see trackingLimiter usage inside each router)
 // ==========================================
 app.use('/api/staff-accounts', staffAccountRoutes);
 app.use('/api/client-accounts', clientAccountRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/documents', applicationDocumentRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
-
-// ==========================================
-// API ROUTES — Client-Facing Modules
-// ==========================================
-app.use('/api/notifications', notificationRoutes);
 
 // ==========================================
 // 404 CATCH-ALL

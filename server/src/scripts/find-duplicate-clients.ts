@@ -7,7 +7,7 @@ import { clientAccounts } from '../db/schema.js';
  * Groups `client_accounts` by normalized full name (lower + trim) and by
  * normalized email, printing every group with more than one member. Makes NO
  * writes — cleanup is left as a deliberate manual decision because deleting a
- * client cascades to its applications + notifications.
+ * client cascades to its applications.
  *
  * Run: npm run check:dups
  */

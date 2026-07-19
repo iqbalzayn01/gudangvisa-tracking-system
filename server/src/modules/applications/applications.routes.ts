@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { ApplicationsController } from './applications.controller.js';
-import { requireStaffAuth, requireClientAuth } from '../../middlewares/auth.middleware.js';
+import { requireStaffAuth } from '../../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../../middlewares/role.middleware.js';
 import { validate } from '../../middlewares/validate.middleware.js';
+import { trackingLimiter } from '../../middlewares/rate-limit.middleware.js';
 import {
   createApplicationSchema,
   updateStatusSchema,
@@ -12,6 +13,9 @@ import {
 
 const router = Router();
 const controller = new ApplicationsController();
+
+// === Public Routes (no auth — resi-based client tracking) ===
+router.get('/track/:referenceNumber', trackingLimiter, controller.trackByReference);
 
 // === Staff Routes ===
 router.post(
@@ -65,13 +69,6 @@ router.delete(
   requireStaffAuth,
   authorizeRoles('admin'),
   controller.delete,
-);
-
-// === Client Routes (separate prefix) ===
-router.get(
-  '/client/my-applications',
-  requireClientAuth,
-  controller.getClientApplications,
 );
 
 export default router;

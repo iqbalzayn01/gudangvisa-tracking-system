@@ -1,11 +1,9 @@
 import { Router } from 'express';
 import { ApplicationDocumentsController } from './application-documents.controller.js';
-import {
-  requireStaffAuth,
-  requireClientAuth,
-} from '../../middlewares/auth.middleware.js';
+import { requireStaffAuth } from '../../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../../middlewares/role.middleware.js';
 import { validate } from '../../middlewares/validate.middleware.js';
+import { trackingLimiter } from '../../middlewares/rate-limit.middleware.js';
 import {
   addDocumentSchema,
   verifyDocumentSchema,
@@ -15,12 +13,13 @@ import {
 const router = Router();
 const controller = new ApplicationDocumentsController();
 
-// === Client Route (defined before the staff-auth gate below) ===
-// Lets an authenticated client download a document they own (e.g. e-Visa PDF).
+// === Public Route (no auth — defined before the staff-auth gate below) ===
+// Lets anyone who knows the reference number download a verified document
+// once the application is completed. See getPublicDownload for the checks.
 router.get(
-  '/client/:id/download',
-  requireClientAuth,
-  controller.getClientDownloadUrl,
+  '/track/:referenceNumber/documents/:documentId/download',
+  trackingLimiter,
+  controller.getPublicDownload,
 );
 
 // All routes below require staff authentication

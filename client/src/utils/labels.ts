@@ -138,6 +138,78 @@ export function phaseOf(status: ApplicationStatus): StatusPhase {
   return STATUS_META[status]?.phase ?? 'document';
 }
 
+/** True for the branch statuses (rejected / cancelled / on_hold). */
+export function isExceptionStatus(status: ApplicationStatus): boolean {
+  return phaseOf(status) === 'exception';
+}
+
+/** Happy-path lifecycle only (draft … completed), excludes exception statuses. */
+const HAPPY_PATH = APPLICATION_STATUSES.slice(0, 13);
+
+/** Position of a status on the happy path; -1 for exception/unknown statuses. */
+export function statusIndex(status: ApplicationStatus): number {
+  return HAPPY_PATH.indexOf(status);
+}
+
+/** The next status on the happy path, or null if terminal/unknown. */
+export function nextStatusOf(status: ApplicationStatus): ApplicationStatus | null {
+  const idx = HAPPY_PATH.indexOf(status);
+  if (idx < 0 || idx >= HAPPY_PATH.length - 1) return null;
+  return HAPPY_PATH[idx + 1];
+}
+
+/**
+ * The canonical forward progression, excluding the `document_revision` branch
+ * (which is only entered on demand when documents need re-work). Used by the
+ * strict status control so staff can only step one stage forward at a time.
+ */
+const FORWARD_PATH: ApplicationStatus[] = [
+  'draft',
+  'document_collection',
+  'document_verification',
+  'submission_to_immigration',
+  'immigration_review',
+  'biometric_scheduled',
+  'biometric_completed',
+  'immigration_processing',
+  'approval_pending',
+  'approved',
+  'evisa_issued',
+  'completed',
+];
+
+/** The single recommended forward status, or null if none. */
+export function forwardNextOf(
+  status: ApplicationStatus,
+): ApplicationStatus | null {
+  if (status === 'document_revision') return 'document_verification';
+  const idx = FORWARD_PATH.indexOf(status);
+  if (idx < 0 || idx >= FORWARD_PATH.length - 1) return null;
+  return FORWARD_PATH[idx + 1];
+}
+
+/**
+ * The only statuses staff may switch to from the current one: the single
+ * forward step, the document-revision branch (during document stages), and the
+ * exception statuses (on hold / cancelled). Everything else is disallowed so
+ * the case cannot skip stages or jump backward. First entry is the recommended
+ * forward step.
+ */
+export function allowedNextStatuses(
+  current: ApplicationStatus,
+): ApplicationStatus[] {
+  if (current === 'completed' || current === 'cancelled') return [];
+  const result: ApplicationStatus[] = [];
+  const fwd = forwardNextOf(current);
+  if (fwd) result.push(fwd);
+  else if (current === 'on_hold')
+    result.push('document_verification', 'submission_to_immigration');
+  if (current === 'document_collection' || current === 'document_verification')
+    result.push('document_revision');
+  result.push('on_hold', 'cancelled');
+  return [...new Set(result)];
+}
+
 /** Phase buckets for the dashboard distribution chart + stepper. */
 export const STATUS_PHASES: { key: StatusPhase; label: string; color: string }[] =
   [

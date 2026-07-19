@@ -69,6 +69,27 @@ export async function createSignedUploadUrl(storagePath: string) {
 }
 
 /**
+ * Upload a file buffer directly to Supabase Storage using the service-role
+ * client. For server-side/trusted writes only (e.g. seed scripts) — the app's
+ * actual document-upload flow goes through the signed-URL path above so the
+ * browser never touches the service key.
+ */
+export async function uploadFileBuffer(
+  storagePath: string,
+  buffer: Buffer,
+  contentType: string,
+): Promise<void> {
+  const { error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(storagePath, buffer, { contentType, upsert: false });
+
+  if (error) {
+    console.error('[storage] uploadFileBuffer failed:', error.message);
+    throw new AppError(500, 'Failed to upload file to storage.');
+  }
+}
+
+/**
  * Verify that a file exists in Supabase Storage after upload.
  * Also performs a server-side file size check as a safety net.
  */

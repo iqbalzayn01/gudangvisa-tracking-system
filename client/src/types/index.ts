@@ -175,8 +175,6 @@ export interface CreateApplicationPayload {
 export interface UpdateStatusPayload {
   status: ApplicationStatus;
   descriptionPublic: string;
-  descriptionInternal?: string;
-  isVisibleToClient?: boolean;
 }
 
 export interface UpdateBiometricPayload {
@@ -253,42 +251,10 @@ export interface TrackingHistory {
   id: string;
   applicationId?: string;
   statusName: ApplicationStatus;
-  descriptionPublic: string;
-  descriptionInternal?: string | null;
+  description: string;
   updatedBy: string;
   createdAt: string;
   updater?: { id?: string; fullName: string };
-}
-
-// ─── Public Tracking (GET /tracking/:code) ───────────────────────────────────
-
-export interface PublicTrackingResult {
-  id: string;
-  trackingCode: string;
-  visaType: VisaType;
-  currentStatus: ApplicationStatus;
-  client: { name: string };
-  handler: { fullName: string };
-  documents: PublicDocument[];
-  histories: PublicHistory[];
-  createdAt: string;
-}
-
-export interface PublicDocument {
-  id: string;
-  docName: string;
-  documentType: DocumentType;
-  status: DocumentStatus;
-  fileDownloadUrl: string | null;
-  createdAt: string;
-}
-
-export interface PublicHistory {
-  id: string;
-  statusName: ApplicationStatus;
-  descriptionPublic: string;
-  updatedBy: { fullName: string };
-  createdAt: string;
 }
 
 // ─── Notification ────────────────────────────────────────────────────────────

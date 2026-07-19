@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
 import { accessSecretKey, JWT_ALGORITHMS } from '../utils/jwt.js';
 import { AppError } from '../utils/AppError.js';
-import type { StaffJwtPayload, ClientJwtPayload } from '../types/index.js';
+import type { StaffJwtPayload } from '../types/index.js';
 
 /**
  * Middleware: Require authentication for INTERNAL staff/admin users.
@@ -31,44 +31,6 @@ export const requireStaffAuth = async (
       email: decoded.email,
       role: decoded.role,
       accountType: 'internal',
-    };
-
-    next();
-  } catch (error) {
-    if (error instanceof AppError) {
-      next(error);
-    } else {
-      next(new AppError(401, 'Invalid or expired token. Please log in again.'));
-    }
-  }
-};
-
-/**
- * Middleware: Require authentication for EXTERNAL client users.
- * Reads JWT from Authorization header, verifies it, and ensures accountType is 'client'.
- * Populates req.clientUser.
- */
-export const requireClientAuth = async (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const token = extractBearerToken(req);
-    const { payload } = await jwtVerify(token, accessSecretKey, {
-      algorithms: JWT_ALGORITHMS,
-    });
-    const decoded = payload as unknown as ClientJwtPayload;
-
-    if (decoded.accountType !== 'client') {
-      throw new AppError(403, 'Access denied: Client account required.');
-    }
-
-    req.clientUser = {
-      id: decoded.id,
-      fullName: decoded.fullName,
-      email: decoded.email,
-      accountType: 'client',
     };
 
     next();

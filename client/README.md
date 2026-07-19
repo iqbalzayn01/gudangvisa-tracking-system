@@ -3,7 +3,7 @@
 The Vue 3 single-page application for the Gudang Visa Tracking System. It serves two separate audiences from one build:
 
 - **Internal dashboard** (staff/admin) — applications, biometrics, document verification, users, and the audit-log viewer.
-- **Client tracking portal** — a self-service area where clients log in to follow their document processing and download completed files (e-Visa, etc.). A document is offered for download as soon as staff mark it **Verified** (`ClientPortalPage` lists docs with `status === 'verified'`); there is no separate "make public" toggle.
+- **Public tracking page** — clients need **no account**: entering their application's reference number ("nomor resi") at `/portal` shows its status timeline at `/portal/track/:referenceNumber`. Documents become downloadable once the application is **Completed** and the document is **Verified** — no login, no separate "make public" step.
 
 ## Tech Stack
 
@@ -15,8 +15,8 @@ The Vue 3 single-page application for the Gudang Visa Tracking System. It serves
 - **vue-i18n** internationalization (Indonesian default, English fallback)
 - **@tabler/icons-vue** / **lucide-vue-next** icons
 - **Pinia** state management
-- **Vue Router** with a navigation guard that handles two auth domains
-- **Axios** HTTP client (separate instances for the staff and client sessions)
+- **Vue Router** with a navigation guard for the staff/admin session (public routes, incl. all of `/portal/*`, pass straight through)
+- **Axios** HTTP client — a staff-session instance plus a bare, unauthenticated instance for the public resi-tracking calls
 
 ## Setup
 
@@ -50,22 +50,21 @@ VITE_BASE_URL=http://localhost:8000/api
 | `/applications/create`  | Staff / Admin | Staff token                                |
 | `/applications/:id`     | Staff / Admin | Staff token                                |
 | `/biometrics`           | Staff / Admin | Staff token                                |
+| `/reports`              | Staff / Admin | Staff token                                |
 | `/audit-logs`           | Admin         | Staff token + admin                        |
 | `/users`                | Admin         | Staff token + admin                        |
 | `/portal`               | Public        | None — public tracking landing (only indexable page) |
-| `/portal/login`         | Client        | Public (redirects if authenticated)        |
-| `/portal/applications`  | Client        | Client token                               |
+| `/portal/track/:referenceNumber` | Public | None — status/timeline/downloads for that application |
 
 ## Authentication
 
-There are two **independent** sessions, kept apart so a leak in one cannot escalate the other:
+A single staff/admin session:
 
-| Session | Store                  | Token storage key   | Refresh endpoint           |
-| ------- | ---------------------- | ------------------- | -------------------------- |
-| Staff   | `auth.store`           | `auth_token`        | `/api/auth/internal/refresh` |
-| Client  | `client-auth.store`    | `client_auth_token` | `/api/auth/client/refresh`   |
+| Session | Store         | Token storage key | Refresh endpoint              |
+| ------- | -------------- | ------------------ | -------------------------------- |
+| Staff   | `auth.store`  | `auth_token`       | `/api/auth/internal/refresh`   |
 
-Each session uses its own Axios instance (`api/client.ts` and `api/portal.client.ts`), both produced by the shared `createApiClient` factory described above.
+`api/client.ts` is the staff-session Axios instance, produced by the shared `createApiClient` factory (bearer-token injection, single-flight 401→refresh→retry). The public resi-tracking calls (`api/tracking.api.ts`) use a separate, bare Axios instance with no token/refresh logic — those endpoints never require a session.
 
 ## Feature Summaries
 
@@ -75,7 +74,7 @@ The core staff workflow, spanning three views:
 
 - **List** (`ApplicationsPage.vue`) — every application in one table with debounced search (`useDebouncedSearch`), status + priority filters, a Ctrl/Cmd-K search shortcut (`useSearchHotkey`), an auto-computed progress bar per status, and admin-only delete. Matched search terms are highlighted with the **HTML-safe** `highlight()` util (escapes the source text before wrapping matches, so a client name containing markup can't inject HTML through `v-html`). Rows deep-link via `?q=` and open the detail view.
 - **Create** (`ApplicationCreatePage.vue`) — pick a client (searchable combobox), visa type, priority (`low`/`medium`/`high`/`urgent`) and notes; on success it shows the generated **reference number** and adds the row to the store optimistically.
-- **Detail** (`ApplicationDetailPage.vue`) — drives the whole lifecycle: status updates (with a client-visible description toggle), the per-visa-type verification **checklist**, **document** management (3-step upload → Supabase signed URL → record; verify / reject-with-reason / delete; download), and the **tracking timeline**. Edits here are pushed back into the applications store (`updateLocal`) so the list and Biometrics views reflect them without a full refetch.
+- **Detail** (`ApplicationDetailPage.vue`) — drives the whole lifecycle: status updates, the per-visa-type verification **checklist**, **document** management (3-step upload → Supabase signed URL → record; verify / reject-with-reason / delete; a self-rendered **PDF preview** via `pdf.js`, no native browser viewer), and the **tracking timeline** (every entry is public — there's no internal/visible-to-client split). Edits here are pushed back into the applications store (`updateLocal`) so the list and Biometrics views reflect them without a full refetch.
 
 All views read shared metadata from `utils/labels.ts` (status labels, badge colors, lifecycle order, progress %), keeping them in sync with the backend enums.
 
@@ -89,9 +88,18 @@ Biometric scheduling lives on the application **detail** page (`updateBiometricS
 
 `AuditLogsPage.vue` is the **admin-only** activity viewer (guarded by `meta.requiresAdmin`). It shows Timestamp, User (actor + role badge), Action (colored pill), Entity (+ description + `#entityId`), and IP Address. Action and Entity filters are applied **server-side** (a watcher refetches on change); a free-text box does client-side search over the loaded set. It renders **real data only** — a failed request surfaces an inline error banner (and clears stale rows) and an empty trail shows an empty state; there is no demo/mock fallback.
 
+### Reports
+
+`ReportsPage.vue` — a monthly recap of applications (new vs. completed, breakdown by visa type and status), computed client-side from the applications store (`utils/monthly-recap.ts`) with a year filter and CSV export (`utils/csv.ts`).
+
+### Public Tracking
+
+- `PublicTrackingPage.vue` (`/portal`) — the marketing landing; its hero has a reference-number search box that routes to the result page. No account, no form beyond the one input.
+- `PublicTrackingResultPage.vue` (`/portal/track/:referenceNumber`) — fetches via `api/tracking.api.ts` (no auth), shows the status stepper/badge and full tracking timeline, and — only once the application is **Completed** — a download button per verified document that requests a fresh signed URL scoped to that reference number.
+
 ## Live Updates
 
-The authenticated client portal (`/portal/applications`) and the public tracking landing (`/portal`) poll the API (~10s) so status stays current without a manual refresh. Polling pauses while the browser tab is hidden (`visibilitychange`) and the interval + listener are cleared on component unmount to avoid memory leaks. (A migration to Supabase Realtime/WebSocket is on the roadmap and would not change the UI layer.)
+`PublicTrackingResultPage.vue` has a manual refresh button rather than polling — the public tracking/download endpoints are rate-limited per IP, so this page intentionally doesn't auto-poll.
 
 ## Internationalization
 
@@ -105,28 +113,29 @@ Per-route metadata (title, description, `robots`, canonical, Open Graph / Twitte
 
 ```
 src/
-├── api/            # Axios instances + typed API modules (staff + portal)
-│                   #   create-client.ts — createApiClient() factory shared by both instances
-│                   #   token-sync.ts    — bridges interceptor refreshes back into the auth stores
-├── components/     # Reusable UI (StatusBadge, PriorityBadge, StatusStepper, TrackingTimeline, …)
+├── api/            # Axios instances + typed API modules
+│                   #   create-client.ts  — createApiClient() factory (staff session)
+│                   #   token-sync.ts     — bridges interceptor refreshes back into the auth store
+│                   #   tracking.api.ts   — bare, unauthenticated instance for public resi tracking/download
+├── components/     # Reusable UI (StatusBadge, PriorityBadge, StatusStepper, TrackingTimeline, PdfPreview, …)
 │   └── ui/         # reka-ui / shadcn-vue primitives (Button, Select)
 ├── composables/    # useDebouncedSearch (debounced list search), useSearchHotkey (Ctrl/Cmd-K focus)
-├── guards/         # Router navigation guard (staff + client domains)
+├── guards/         # Router navigation guard (staff/admin session; all other routes are public)
 ├── i18n/           # vue-i18n setup + locales/{id,en}.ts
 ├── layouts/        # Dashboard / auth layouts
 ├── lib/            # cn() class-merge helper
-├── pages/          # Route views (incl. PublicTrackingPage, ClientLoginPage, ClientPortalPage)
-├── stores/         # Pinia stores (auth, client-auth, application, client, notification, theme)
+├── pages/          # Route views (incl. PublicTrackingPage, PublicTrackingResultPage, ReportsPage)
+├── stores/         # Pinia stores (auth, application, client, notification, theme)
 ├── styles/         # globals.css (Tailwind v4 + design tokens)
 ├── types/          # Shared TypeScript types (mirror backend enums: ApplicationStatus, VisaType, DocumentType, Priority, …)
 └── utils/          # formatters.ts (dates, file size, expiry, XSS-safe highlight),
                     #   labels.ts (status/visa/document/priority/biometric labels + badge classes),
-                    #   clipboard.ts, seo.ts
+                    #   clipboard.ts, seo.ts, csv.ts, monthly-recap.ts
 ```
 
 ### Shared axios factory
 
-Both sessions are built from one `createApiClient({ tokenKey, refreshPath, loginRedirect })` factory (`api/create-client.ts`) instead of two hand-copied instances. It injects the bearer token, normalizes error messages, and runs a **single-flight** 401→refresh→retry interceptor: concurrent 401s share one refresh request (rather than each firing its own and invalidating one another under refresh-token rotation), and the new token is pushed back into the Pinia store via `api/token-sync.ts`.
+The staff session is built from `createApiClient({ tokenKey, refreshPath, loginRedirect })` (`api/create-client.ts`). It injects the bearer token, normalizes error messages, and runs a **single-flight** 401→refresh→retry interceptor, pushing the refreshed token back into the Pinia store via `api/token-sync.ts`. The public tracking calls in `api/tracking.api.ts` intentionally don't use this factory — they're unauthenticated by design.
 
 ## Labels & Status Metadata
 

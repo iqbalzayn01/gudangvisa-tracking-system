@@ -33,7 +33,6 @@ export const updateStatusSchema = z.object({
     'on_hold',
   ]),
   description: z.string().min(1, 'Description is required.'),
-  isVisibleToClient: z.boolean().optional().default(true),
 });
 
 export const updateBiometricSchema = z.object({

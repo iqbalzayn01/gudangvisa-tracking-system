@@ -1,6 +1,5 @@
 import { ClientAccountsRepository } from './client-accounts.repository.js';
 import { AppError } from '../../utils/AppError.js';
-import { hashPassword } from '../../utils/password.js';
 import { deleteStorageFiles } from '../../utils/storage.js';
 import type {
   CreateClientAccountInput,
@@ -27,12 +26,9 @@ export class ClientAccountsService {
       );
     }
 
-    const hashedPassword = await hashPassword(data.password);
-
     return await this.repository.createClient({
       fullName: data.fullName,
       email: data.email,
-      passwordHash: hashedPassword,
       passportNumber: data.passportNumber,
       nationality: data.nationality,
       phone: data.phone ?? null,
@@ -74,7 +70,7 @@ export class ClientAccountsService {
   }
 
   async removeClient(id: string) {
-    // The DB cascade removes the client's applications/documents/notifications;
+    // The DB cascade removes the client's applications/documents;
     // grab the document storage paths first so the bucket files go too.
     const filePaths = await this.repository.findDocumentPathsByClientId(id);
     const result = await this.repository.deleteById(id);

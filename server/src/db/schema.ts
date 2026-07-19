@@ -115,7 +115,6 @@ export const clientAccounts = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     email: varchar('email', { length: 255 }).unique().notNull(),
-    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
     fullName: varchar('full_name', { length: 255 }).notNull(),
     passportNumber: varchar('passport_number', { length: 50 }).notNull(),
     nationality: varchar('nationality', { length: 100 }).notNull(),
@@ -238,7 +237,6 @@ export const trackingHistory = pgTable(
       () => staffAccounts.id,
       { onDelete: 'set null' },
     ),
-    isVisibleToClient: boolean('is_visible_to_client').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => ({
@@ -249,33 +247,7 @@ export const trackingHistory = pgTable(
 );
 
 // ==========================================
-// 6. NOTIFICATIONS
-// ==========================================
-export const notifications = pgTable(
-  'notifications',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    clientId: uuid('client_id')
-      .references(() => clientAccounts.id, { onDelete: 'cascade' })
-      .notNull(),
-    applicationId: uuid('application_id')
-      .references(() => applications.id, { onDelete: 'cascade' })
-      .notNull(),
-    title: varchar('title', { length: 255 }).notNull(),
-    message: text('message').notNull(),
-    isRead: boolean('is_read').default(false).notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    clientIdIdx: index('notifications_client_id_idx').on(table.clientId),
-    applicationIdIdx: index('notifications_application_id_idx').on(
-      table.applicationId,
-    ),
-  }),
-);
-
-// ==========================================
-// 7. AUDIT_LOGS
+// 6. AUDIT_LOGS
 // ==========================================
 export const auditLogs = pgTable(
   'audit_logs',
@@ -318,7 +290,6 @@ export const clientAccountsRelations = relations(
   clientAccounts,
   ({ many }) => ({
     applications: many(applications),
-    notifications: many(notifications),
   }),
 );
 
@@ -341,7 +312,6 @@ export const applicationsRelations = relations(
     }),
     documents: many(applicationDocuments),
     trackingHistory: many(trackingHistory),
-    notifications: many(notifications),
     auditLogs: many(auditLogs),
   }),
 );
@@ -373,17 +343,6 @@ export const trackingHistoryRelations = relations(
     }),
   }),
 );
-
-export const notificationsRelations = relations(notifications, ({ one }) => ({
-  client: one(clientAccounts, {
-    fields: [notifications.clientId],
-    references: [clientAccounts.id],
-  }),
-  application: one(applications, {
-    fields: [notifications.applicationId],
-    references: [applications.id],
-  }),
-}));
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   staff: one(staffAccounts, {
