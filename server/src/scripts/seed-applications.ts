@@ -42,46 +42,28 @@ const VISA_TYPES = [
   'KITAS_RETIREMENT',
 ] as const;
 
-// Happy-path lifecycle, oldest → newest (excludes exception branches).
+// Happy-path lifecycle, oldest → newest (excludes the cancelled branch).
 const HAPPY_PATH = [
   'draft',
-  'document_collection',
   'document_verification',
-  'document_revision',
-  'submission_to_immigration',
-  'immigration_review',
-  'biometric_scheduled',
-  'biometric_completed',
   'immigration_processing',
   'approval_pending',
-  'approved',
-  'evisa_issued',
   'completed',
 ] as const;
 
 const STATUS_PROGRESS: Record<string, number> = {
   draft: 0,
-  document_collection: 10,
-  document_verification: 20,
-  document_revision: 25,
-  submission_to_immigration: 35,
-  immigration_review: 45,
-  biometric_scheduled: 55,
-  biometric_completed: 65,
-  immigration_processing: 75,
-  approval_pending: 85,
-  approved: 90,
-  evisa_issued: 95,
+  document_verification: 25,
+  immigration_processing: 50,
+  approval_pending: 75,
   completed: 100,
-  rejected: 40,
-  cancelled: 15,
-  on_hold: 50,
+  cancelled: 40,
 };
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
 const DEFAULT_CHECKLIST_ITEMS: Record<(typeof VISA_TYPES)[number], string[]> = {
-  B211A: ['Passport', 'Passport-size Photo', 'Sponsor Letter', 'Bank Statement'],
+  B211A: ['Passport', 'Passport-size Photo', 'Bank Statement'],
   KITAS_WORKING: [
     'Passport',
     'Passport-size Photo',
@@ -111,20 +93,18 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
-/** Older applications skew further along the pipeline (or into an exception branch). */
+/** Older applications skew further along the pipeline (or into the cancelled branch). */
 function pickStatus(createdAt: Date): string {
   const ageDays = (Date.now() - createdAt.getTime()) / 86_400_000;
 
   const roll = Math.random();
-  if (roll < 0.08) return 'rejected';
-  if (roll < 0.12) return 'cancelled';
-  if (roll < 0.16) return 'on_hold';
+  if (roll < 0.16) return 'cancelled';
 
   let maxIdx: number;
   if (ageDays > 240) maxIdx = HAPPY_PATH.length - 1;
-  else if (ageDays > 120) maxIdx = 10;
-  else if (ageDays > 45) maxIdx = 6;
-  else maxIdx = 3;
+  else if (ageDays > 120) maxIdx = 3;
+  else if (ageDays > 45) maxIdx = 2;
+  else maxIdx = 1;
 
   const idx = Math.floor(Math.random() * (maxIdx + 1));
   return HAPPY_PATH[idx]!;
@@ -148,8 +128,6 @@ function buildChecklist(visaType: (typeof VISA_TYPES)[number], status: string) {
 const VERIFIED_STATUSES = new Set([
   'immigration_processing',
   'approval_pending',
-  'approved',
-  'evisa_issued',
   'completed',
 ]);
 
@@ -230,7 +208,7 @@ async function seedApplications(): Promise<void> {
     const storagePath = generateStoragePath(dummyFileName);
     await uploadFileBuffer(storagePath, fileBuffers[dummyFileName]!, 'application/pdf');
 
-    const docStatus = status === 'rejected'
+    const docStatus = status === 'cancelled'
       ? 'rejected'
       : VERIFIED_STATUSES.has(status)
         ? 'verified'

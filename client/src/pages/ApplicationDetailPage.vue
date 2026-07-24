@@ -27,7 +27,6 @@ import type {
   DocumentType,
 } from '../types';
 import StatusBadge from '../components/StatusBadge.vue';
-import PriorityBadge from '../components/PriorityBadge.vue';
 import StatusStepper from '../components/StatusStepper.vue';
 import TrackingTimeline from '../components/TrackingTimeline.vue';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
@@ -176,9 +175,9 @@ const biometricDone = computed(
   () => application.value?.biometricStatus === 'completed',
 );
 
-// Biometric only becomes an active step while the case sits at that phase.
+// Biometric only becomes an active step while the case is being processed.
 const needsBiometric = computed(
-  () => application.value?.currentStatus === 'biometric_scheduled',
+  () => application.value?.currentStatus === 'immigration_processing',
 );
 
 // Linear flow: the single step staff should work on right now. Steps before it
@@ -254,20 +253,8 @@ const nextAction = computed<NextAction | null>(() => {
   const plural = (n: number) => (n > 1 ? 's' : '');
 
   if (s === 'completed' || s === 'cancelled') return null;
-  if (s === 'on_hold')
-    return {
-      label: 'Case is on hold',
-      hint: 'Set a new status to resume processing when ready.',
-      target: 'status',
-    };
-  if (s === 'rejected')
-    return {
-      label: 'Case was rejected',
-      hint: 'Review the tracking history, or set a new status to re-open it.',
-      target: 'status',
-    };
 
-  if (s === 'draft' || s === 'document_collection') {
+  if (s === 'draft') {
     if (total === 0)
       return {
         label: 'Upload the required documents',
@@ -305,54 +292,38 @@ const nextAction = computed<NextAction | null>(() => {
       target: 'status',
     };
   }
-  if (s === 'document_revision')
+  if (s === 'immigration_processing') {
+    if (needsBiometric.value && !biometricDone.value)
+      return bioScheduled.value
+        ? {
+            label: 'Mark biometric as Completed',
+            hint: 'Update the appointment after the client attends.',
+            target: 'biometric',
+          }
+        : {
+            label: 'Schedule the biometric appointment',
+            hint: 'Set the date, time, location and field assistant.',
+            target: 'biometric',
+          };
     return {
-      label: 'Client must re-submit documents',
-      hint: 'Wait for corrected files, then re-verify them.',
-      target: 'documents',
-    };
-  if (s === 'biometric_scheduled')
-    return bioScheduled.value
-      ? {
-          label: 'Mark biometric as Completed',
-          hint: 'Update the appointment after the client attends.',
-          target: 'biometric',
-        }
-      : {
-          label: 'Schedule the biometric appointment',
-          hint: 'Set the date, time, location and field assistant.',
-          target: 'biometric',
-        };
-  if (s === 'biometric_completed')
-    return {
-      label: 'Advance to Immigration Processing',
-      hint: 'Biometrics done — move the case forward.',
+      label: 'Advance to Approval Pending',
+      hint: 'Immigration processing complete — move the case forward.',
       target: 'status',
     };
-  if (s === 'approved' || s === 'evisa_issued')
-    return {
-      label: 'Upload the final e-Visa, then mark Completed',
-      hint: 'Attach the issued document and close the case.',
-      target: 'documents',
-    };
-
-  const next = recommendedNext.value;
+  }
+  // approval_pending
   return {
-    label: next
-      ? `Advance to ${applicationStatusLabel(next)}`
-      : 'Advance to the next step',
-    hint: 'Move the case forward once this stage is done.',
+    label: 'Mark as Completed',
+    hint: 'Once approved, close out the case.',
     target: 'status',
   };
 });
 
-// The only statuses selectable in the form (strict: one forward step, the
-// revision branch, or an exception — nothing else).
+// The document stage: the case can move freely between these two statuses
+// without the documents/checklist gate below applying.
 const DOC_PHASE_STATUSES = new Set<ApplicationStatus>([
   'draft',
-  'document_collection',
   'document_verification',
-  'document_revision',
 ]);
 const allowedStatuses = computed<ApplicationStatus[]>(() =>
   application.value ? allowedNextStatuses(application.value.currentStatus) : [],
@@ -480,10 +451,10 @@ function syncBiometricForm(): void {
 }
 
 // ── Status update ────────────────────────────────────────────────────────────
-// Exception statuses (rejected / cancelled / on_hold) are consequential —
-// gate them behind a confirmation before hitting the API.
+// The cancelled/rejected branch is consequential — gate it behind a
+// confirmation before hitting the API.
 function handleStatusUpdate(): void {
-  if (!application.value || !statusDescription.value.trim()) return;
+  if (!application.value) return;
   if (isExceptionStatus(newStatus.value)) {
     askConfirm(
       `Set status to “${applicationStatusLabel(newStatus.value)}”?`,
@@ -497,12 +468,12 @@ function handleStatusUpdate(): void {
 }
 
 async function doStatusUpdate(): Promise<void> {
-  if (!application.value || !statusDescription.value.trim()) return;
+  if (!application.value) return;
   isUpdating.value = true;
   try {
     await updateApplicationStatus(application.value.id, {
       status: newStatus.value,
-      descriptionPublic: statusDescription.value.trim(),
+      descriptionPublic: statusDescription.value.trim() || undefined,
     });
     applicationStore.updateStatusLocal(application.value.id, newStatus.value);
     notify.success('Status updated');
@@ -740,7 +711,6 @@ async function handleBiometricSave(): Promise<void> {
             </h1>
           </div>
           <div class="flex items-center gap-2">
-            <PriorityBadge :priority="application.priority ?? 'medium'" />
             <StatusBadge :status="application.currentStatus" />
           </div>
         </div>
@@ -1487,8 +1457,7 @@ async function handleBiometricSave(): Promise<void> {
             v-model="statusDescription"
             type="text"
             class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none focus:border-red-500 placeholder:text-subtle"
-            placeholder="Description (required) *"
-            required
+            placeholder="Description (optional)"
           />
           <!-- Hard block: cannot leave the document stage until it is complete -->
           <div
@@ -1523,7 +1492,7 @@ async function handleBiometricSave(): Promise<void> {
             <Button
               variant="ghost"
               class="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer h-auto"
-              :disabled="isUpdating || !statusDescription.trim() || !canAdvance"
+              :disabled="isUpdating || !canAdvance"
               @click="handleStatusUpdate"
             >
               {{ isUpdating ? 'Updating…' : 'Update' }}

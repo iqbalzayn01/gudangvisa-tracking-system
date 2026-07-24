@@ -6,11 +6,7 @@ import { APPLICATION_STATUSES, VISA_TYPE_META } from './labels';
  * `completedAt` on the client model, so completion is measured from the current
  * status of each application within its creation-month cohort.
  */
-export const COMPLETED_STATUSES: ApplicationStatus[] = [
-  'approved',
-  'evisa_issued',
-  'completed',
-];
+export const COMPLETED_STATUSES: ApplicationStatus[] = ['completed'];
 
 const COMPLETED_SET = new Set<ApplicationStatus>(COMPLETED_STATUSES);
 

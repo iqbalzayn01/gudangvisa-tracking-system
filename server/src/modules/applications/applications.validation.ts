@@ -9,30 +9,19 @@ export const createApplicationSchema = z.object({
     'KITAS_INVESTOR',
     'KITAS_RETIREMENT',
   ]),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   notes: z.string().optional(),
 });
 
 export const updateStatusSchema = z.object({
   status: z.enum([
     'draft',
-    'document_collection',
     'document_verification',
-    'document_revision',
-    'submission_to_immigration',
-    'immigration_review',
-    'biometric_scheduled',
-    'biometric_completed',
     'immigration_processing',
     'approval_pending',
-    'approved',
-    'evisa_issued',
     'completed',
-    'rejected',
     'cancelled',
-    'on_hold',
   ]),
-  description: z.string().min(1, 'Description is required.'),
+  description: z.string().optional(),
 });
 
 export const updateBiometricSchema = z.object({

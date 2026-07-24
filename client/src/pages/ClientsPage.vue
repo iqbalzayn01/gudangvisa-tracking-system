@@ -4,7 +4,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useClientStore } from '../stores/client.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotificationStore } from '../stores/notification.store';
-import { updateClient } from '../api/clients.api';
+import { createClient, updateClient } from '../api/clients.api';
 import type { Client } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import { formatDate } from '../utils/formatters';
@@ -30,6 +30,49 @@ const filteredClients = computed(() => {
       (c.contactNumber ?? '').toLowerCase().includes(q),
   );
 });
+
+// ── Add (admin only) ─────────────────────────────────────────────────────────
+const showAddModal = ref(false);
+const addName = ref('');
+const addEmail = ref('');
+const addPassport = ref('');
+const addNationality = ref('');
+const addPhone = ref('');
+const isCreating = ref(false);
+
+function openAdd(): void {
+  if (!auth.isAdmin) return;
+  addName.value = '';
+  addEmail.value = '';
+  addPassport.value = '';
+  addNationality.value = '';
+  addPhone.value = '';
+  showAddModal.value = true;
+}
+
+function closeAdd(): void {
+  showAddModal.value = false;
+}
+
+async function saveAdd(): Promise<void> {
+  isCreating.value = true;
+  try {
+    const created = await createClient({
+      name: addName.value.trim(),
+      email: addEmail.value.trim(),
+      passportNumber: addPassport.value.trim(),
+      nationality: addNationality.value.trim(),
+      contactNumber: addPhone.value.trim() || undefined,
+    });
+    clientStore.addLocal(created);
+    notify.success('Client added successfully.');
+    closeAdd();
+  } catch (err) {
+    notify.fromError(err, 'Failed to add client');
+  } finally {
+    isCreating.value = false;
+  }
+}
 
 // ── Edit (admin only) ────────────────────────────────────────────────────────
 const editTarget = ref<Client | null>(null);
@@ -88,8 +131,30 @@ onMounted(() => {
           }}
         </p>
       </div>
+      <Button
+        v-if="auth.isAdmin"
+        variant="ghost"
+        class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer h-auto shrink-0"
+        @click="openAdd"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Add Client
+      </Button>
       <span
-        v-if="!auth.isAdmin"
+        v-else
         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-panel-light border border-edge text-xs text-subtle"
       >
         <svg
@@ -230,6 +295,127 @@ onMounted(() => {
     <div v-else class="text-center py-16 text-subtle">
       <p class="text-lg text-heading font-medium mb-2">No clients found</p>
       <p class="text-sm">Try adjusting your search.</p>
+    </div>
+
+    <!-- Add modal (admin only) -->
+    <div
+      v-if="showAddModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      @click.self="closeAdd"
+    >
+      <div class="w-full max-w-md bg-panel border border-edge rounded-2xl p-6">
+        <h2 class="text-lg font-semibold text-heading mb-1">Add Client</h2>
+        <p class="text-xs text-subtle mb-5">
+          Full name and email must be unique.
+        </p>
+
+        <form class="flex flex-col gap-4" @submit.prevent="saveAdd">
+          <div class="flex flex-col gap-1.5">
+            <label
+              class="text-[13px] font-semibold text-heading"
+              for="add-name"
+              >Name *</label
+            >
+            <input
+              id="add-name"
+              v-model="addName"
+              type="text"
+              required
+              minlength="2"
+              class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none transition-all focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
+            />
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label
+              class="text-[13px] font-semibold text-heading"
+              for="add-email"
+              >Email *</label
+            >
+            <input
+              id="add-email"
+              v-model="addEmail"
+              type="email"
+              required
+              class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none transition-all focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-[13px] font-semibold text-heading"
+                for="add-passport"
+                >Passport *</label
+              >
+              <input
+                id="add-passport"
+                v-model="addPassport"
+                type="text"
+                required
+                class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none transition-all focus:border-red-500 focus:ring-3 focus:ring-red-500/12 font-mono"
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label
+                class="text-[13px] font-semibold text-heading"
+                for="add-nationality"
+                >Nationality *</label
+              >
+              <input
+                id="add-nationality"
+                v-model="addNationality"
+                type="text"
+                required
+                class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none transition-all focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label
+              class="text-[13px] font-semibold text-heading"
+              for="add-phone"
+              >Phone</label
+            >
+            <input
+              id="add-phone"
+              v-model="addPhone"
+              type="text"
+              class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-lg outline-none transition-all focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
+            />
+          </div>
+
+          <div class="flex gap-3 justify-end mt-2">
+            <Button
+              variant="ghost"
+              type="button"
+              class="px-4 py-2 text-sm font-medium rounded-lg border border-edge text-body hover:bg-panel-light transition-colors cursor-pointer h-auto"
+              @click="closeAdd"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="ghost"
+              type="submit"
+              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer h-auto"
+              :disabled="
+                isCreating ||
+                !addName.trim() ||
+                !addEmail.trim() ||
+                !addPassport.trim() ||
+                !addNationality.trim()
+              "
+            >
+              <span
+                v-if="isCreating"
+                class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+              />
+              {{ isCreating ? 'Adding…' : 'Add client' }}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <!-- Edit modal (admin only) -->

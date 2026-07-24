@@ -35,6 +35,12 @@ const router = createRouter({
       component: () => import('../pages/PublicTrackingResultPage.vue'),
       meta: { public: true, title: 'Lacak Permohonan — GudangVisa' },
     },
+    {
+      path: '/portal/track/:referenceNumber/receipt',
+      name: 'PortalReceipt',
+      component: () => import('../pages/PublicReceiptPage.vue'),
+      meta: { public: true, title: 'Tanda Terima — GudangVisa' },
+    },
 
     // ── Authenticated Routes ───────────────────────────────────────────────
     {

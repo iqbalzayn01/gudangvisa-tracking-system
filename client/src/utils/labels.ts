@@ -3,126 +3,57 @@ import type {
   BiometricStatus,
   DocumentStatus,
   DocumentType,
-  Priority,
   VisaType,
 } from '../types';
 
-// ─── Application status (16-stage KITAS lifecycle) ───────────────────────────
-
-export type StatusPhase =
-  | 'document'
-  | 'immigration'
-  | 'biometric'
-  | 'decision'
-  | 'completed'
-  | 'exception';
+// ─── Application status (6-stage KITAS lifecycle) ─────────────────────────────
 
 interface StatusMeta {
   label: string;
   badge: string; // Tailwind bg + text classes
-  phase: StatusPhase;
+  bar: string; // Solid Tailwind bg class, for progress/distribution bars
 }
 
 /** Canonical ordering used by progress bars and the status dropdown. */
 export const APPLICATION_STATUSES: ApplicationStatus[] = [
   'draft',
-  'document_collection',
   'document_verification',
-  'document_revision',
-  'submission_to_immigration',
-  'immigration_review',
-  'biometric_scheduled',
-  'biometric_completed',
   'immigration_processing',
   'approval_pending',
-  'approved',
-  'evisa_issued',
   'completed',
-  'rejected',
   'cancelled',
-  'on_hold',
 ];
 
 export const STATUS_META: Record<ApplicationStatus, StatusMeta> = {
   draft: {
     label: 'Draft',
     badge: 'bg-slate-500/15 text-slate-400',
-    phase: 'document',
-  },
-  document_collection: {
-    label: 'Document Collection',
-    badge: 'bg-slate-500/15 text-slate-300',
-    phase: 'document',
+    bar: 'bg-slate-500',
   },
   document_verification: {
     label: 'Document Verification',
     badge: 'bg-amber-500/15 text-amber-400',
-    phase: 'document',
-  },
-  document_revision: {
-    label: 'Document Revision',
-    badge: 'bg-orange-500/15 text-orange-400',
-    phase: 'document',
-  },
-  submission_to_immigration: {
-    label: 'Submitted to Immigration',
-    badge: 'bg-sky-500/15 text-sky-400',
-    phase: 'immigration',
-  },
-  immigration_review: {
-    label: 'Immigration Review',
-    badge: 'bg-sky-500/15 text-sky-300',
-    phase: 'immigration',
-  },
-  biometric_scheduled: {
-    label: 'Biometric Scheduled',
-    badge: 'bg-indigo-500/15 text-indigo-400',
-    phase: 'biometric',
-  },
-  biometric_completed: {
-    label: 'Biometric Completed',
-    badge: 'bg-indigo-500/15 text-indigo-300',
-    phase: 'biometric',
+    bar: 'bg-amber-500',
   },
   immigration_processing: {
     label: 'Immigration Processing',
-    badge: 'bg-blue-500/15 text-blue-400',
-    phase: 'immigration',
+    badge: 'bg-sky-500/15 text-sky-400',
+    bar: 'bg-sky-500',
   },
   approval_pending: {
     label: 'Approval Pending',
-    badge: 'bg-amber-500/15 text-amber-300',
-    phase: 'decision',
-  },
-  approved: {
-    label: 'Approved',
-    badge: 'bg-emerald-500/15 text-emerald-400',
-    phase: 'decision',
-  },
-  evisa_issued: {
-    label: 'E-Visa Issued',
-    badge: 'bg-emerald-500/15 text-emerald-300',
-    phase: 'decision',
+    badge: 'bg-indigo-500/15 text-indigo-400',
+    bar: 'bg-indigo-500',
   },
   completed: {
     label: 'Completed',
-    badge: 'bg-emerald-600/15 text-emerald-400',
-    phase: 'completed',
-  },
-  rejected: {
-    label: 'Rejected',
-    badge: 'bg-rose-500/15 text-rose-400',
-    phase: 'exception',
+    badge: 'bg-emerald-500/15 text-emerald-400',
+    bar: 'bg-emerald-500',
   },
   cancelled: {
     label: 'Cancelled',
-    badge: 'bg-rose-500/15 text-rose-300',
-    phase: 'exception',
-  },
-  on_hold: {
-    label: 'On Hold',
-    badge: 'bg-yellow-500/15 text-yellow-400',
-    phase: 'exception',
+    badge: 'bg-rose-500/15 text-rose-400',
+    bar: 'bg-rose-500',
   },
 };
 
@@ -134,65 +65,33 @@ export function statusBadgeClass(status: ApplicationStatus): string {
   return STATUS_META[status]?.badge ?? 'bg-slate-500/15 text-slate-400';
 }
 
-export function phaseOf(status: ApplicationStatus): StatusPhase {
-  return STATUS_META[status]?.phase ?? 'document';
+export function statusBarClass(status: ApplicationStatus): string {
+  return STATUS_META[status]?.bar ?? 'bg-slate-500';
 }
 
-/** True for the branch statuses (rejected / cancelled / on_hold). */
+/** True for the single branch status (cancelled / rejected). */
 export function isExceptionStatus(status: ApplicationStatus): boolean {
-  return phaseOf(status) === 'exception';
+  return status === 'cancelled';
 }
 
-/** Happy-path lifecycle only (draft … completed), excludes exception statuses. */
-const HAPPY_PATH = APPLICATION_STATUSES.slice(0, 13);
+/** Happy-path lifecycle only (draft … completed), excludes `cancelled`. */
+export const STATUS_STEPS: ApplicationStatus[] = APPLICATION_STATUSES.filter(
+  (s) => s !== 'cancelled',
+);
 
-/** Position of a status on the happy path; -1 for exception/unknown statuses. */
-export function statusIndex(status: ApplicationStatus): number {
-  return HAPPY_PATH.indexOf(status);
-}
-
-/** The next status on the happy path, or null if terminal/unknown. */
-export function nextStatusOf(status: ApplicationStatus): ApplicationStatus | null {
-  const idx = HAPPY_PATH.indexOf(status);
-  if (idx < 0 || idx >= HAPPY_PATH.length - 1) return null;
-  return HAPPY_PATH[idx + 1];
-}
-
-/**
- * The canonical forward progression, excluding the `document_revision` branch
- * (which is only entered on demand when documents need re-work). Used by the
- * strict status control so staff can only step one stage forward at a time.
- */
-const FORWARD_PATH: ApplicationStatus[] = [
-  'draft',
-  'document_collection',
-  'document_verification',
-  'submission_to_immigration',
-  'immigration_review',
-  'biometric_scheduled',
-  'biometric_completed',
-  'immigration_processing',
-  'approval_pending',
-  'approved',
-  'evisa_issued',
-  'completed',
-];
-
-/** The single recommended forward status, or null if none. */
+/** The single recommended forward status, or null if terminal. */
 export function forwardNextOf(
   status: ApplicationStatus,
 ): ApplicationStatus | null {
-  if (status === 'document_revision') return 'document_verification';
-  const idx = FORWARD_PATH.indexOf(status);
-  if (idx < 0 || idx >= FORWARD_PATH.length - 1) return null;
-  return FORWARD_PATH[idx + 1];
+  const idx = STATUS_STEPS.indexOf(status);
+  if (idx < 0 || idx >= STATUS_STEPS.length - 1) return null;
+  return STATUS_STEPS[idx + 1];
 }
 
 /**
  * The only statuses staff may switch to from the current one: the single
- * forward step, the document-revision branch (during document stages), and the
- * exception statuses (on hold / cancelled). Everything else is disallowed so
- * the case cannot skip stages or jump backward. First entry is the recommended
+ * forward step, plus `cancelled`. Everything else is disallowed so the case
+ * cannot skip stages or jump backward. First entry is the recommended
  * forward step.
  */
 export function allowedNextStatuses(
@@ -202,68 +101,16 @@ export function allowedNextStatuses(
   const result: ApplicationStatus[] = [];
   const fwd = forwardNextOf(current);
   if (fwd) result.push(fwd);
-  else if (current === 'on_hold')
-    result.push('document_verification', 'submission_to_immigration');
-  if (current === 'document_collection' || current === 'document_verification')
-    result.push('document_revision');
-  result.push('on_hold', 'cancelled');
-  return [...new Set(result)];
+  result.push('cancelled');
+  return result;
 }
-
-/** Phase buckets for the dashboard distribution chart + stepper. */
-export const STATUS_PHASES: { key: StatusPhase; label: string; color: string }[] =
-  [
-    { key: 'document', label: 'Document', color: 'bg-slate-500' },
-    { key: 'immigration', label: 'Immigration', color: 'bg-sky-500' },
-    { key: 'biometric', label: 'Biometric', color: 'bg-indigo-500' },
-    { key: 'decision', label: 'Decision', color: 'bg-amber-500' },
-    { key: 'completed', label: 'Completed', color: 'bg-emerald-500' },
-    { key: 'exception', label: 'On Hold / Closed', color: 'bg-rose-500' },
-  ];
-
-/** Grouped options for the status <select> on the detail page. */
-export const STATUS_GROUPS: { label: string; statuses: ApplicationStatus[] }[] =
-  [
-    {
-      label: 'Document',
-      statuses: [
-        'draft',
-        'document_collection',
-        'document_verification',
-        'document_revision',
-      ],
-    },
-    {
-      label: 'Immigration',
-      statuses: [
-        'submission_to_immigration',
-        'immigration_review',
-        'immigration_processing',
-      ],
-    },
-    {
-      label: 'Biometric',
-      statuses: ['biometric_scheduled', 'biometric_completed'],
-    },
-    {
-      label: 'Decision',
-      statuses: ['approval_pending', 'approved', 'evisa_issued', 'completed'],
-    },
-    {
-      label: 'Exception',
-      statuses: ['rejected', 'cancelled', 'on_hold'],
-    },
-  ];
 
 /** Progress percentage derived from the position in the lifecycle. */
 export function progressFromStatus(status: ApplicationStatus): number {
-  if (status === 'completed' || status === 'evisa_issued') return 100;
-  if (status === 'rejected' || status === 'cancelled') return 100;
-  // Linear order through the "happy path" stages.
-  const order = APPLICATION_STATUSES.slice(0, 13); // draft … completed
-  const idx = order.indexOf(status);
+  if (status === 'completed' || status === 'cancelled') return 100;
+  const idx = STATUS_STEPS.indexOf(status);
   if (idx < 0) return 0;
-  return Math.round((idx / (order.length - 1)) * 100);
+  return Math.round((idx / (STATUS_STEPS.length - 1)) * 100);
 }
 
 // ─── Visa type ───────────────────────────────────────────────────────────────
@@ -334,28 +181,6 @@ export function documentStatusLabel(status: DocumentStatus): string {
 export function documentStatusClass(status: DocumentStatus): string {
   return DOCUMENT_STATUS_META[status]?.badge ?? 'bg-slate-500/15 text-slate-400';
 }
-
-// ─── Priority ────────────────────────────────────────────────────────────────
-
-export const PRIORITY_META: Record<Priority, { label: string; badge: string }> =
-  {
-    low: { label: 'Low', badge: 'bg-slate-500/15 text-slate-400' },
-    medium: { label: 'Medium', badge: 'bg-sky-500/15 text-sky-400' },
-    high: { label: 'High', badge: 'bg-amber-500/15 text-amber-400' },
-    urgent: { label: 'Urgent', badge: 'bg-red-500/15 text-red-400' },
-  };
-
-export function priorityLabel(priority: Priority): string {
-  return PRIORITY_META[priority]?.label ?? priority;
-}
-
-export function priorityClasses(priority: Priority): string {
-  return PRIORITY_META[priority]?.badge ?? PRIORITY_META.medium.badge;
-}
-
-export const PRIORITY_OPTIONS = (Object.keys(PRIORITY_META) as Priority[]).map(
-  (value) => ({ value, label: PRIORITY_META[value].label }),
-);
 
 // ─── Biometric status ────────────────────────────────────────────────────────
 
