@@ -89,7 +89,6 @@ export class ApplicationsRepository {
         id: true,
         referenceNumber: true,
         visaType: true,
-        priority: true,
         status: true,
         progressPercentage: true,
         createdAt: true,

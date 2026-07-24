@@ -6,9 +6,8 @@ import { deleteApplication } from '../api/applications.api';
 import { useAuthStore } from '../stores/auth.store';
 import { useApplicationStore } from '../stores/application.store';
 import { useNotificationStore } from '../stores/notification.store';
-import type { ApplicationStatus, Priority } from '../types';
+import type { ApplicationStatus } from '../types';
 import StatusBadge from '../components/StatusBadge.vue';
-import PriorityBadge from '../components/PriorityBadge.vue';
 import LoadingSpinner from '../components/LoadingSpinner.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import FilterSelect from '../components/FilterSelect.vue';
@@ -17,9 +16,7 @@ import { useDebouncedSearch } from '../composables/useDebouncedSearch';
 import { useSearchHotkey } from '../composables/useSearchHotkey';
 import {
   APPLICATION_STATUSES,
-  PRIORITY_OPTIONS,
   applicationStatusLabel,
-  priorityLabel,
   visaTypeLabel,
 } from '../utils/labels';
 import { copyToClipboard } from '../utils/clipboard';
@@ -36,7 +33,6 @@ const isDeleting = ref(false);
 // ── Search & Filter state ────────────────────────────────────────────────────
 const { searchInput, searchQuery, setSearch } = useDebouncedSearch();
 const filterStatus = ref<ApplicationStatus | ''>('');
-const filterPriority = ref<Priority | ''>('');
 const searchRef = ref<HTMLInputElement | null>(null);
 
 useSearchHotkey(searchRef);
@@ -47,16 +43,11 @@ const statusSelectOptions = computed(() =>
     label: applicationStatusLabel(s),
   })),
 );
-const prioritySelectOptions = computed(() => PRIORITY_OPTIONS);
 
 const filteredApplications = computed(() => {
   let list = applicationStore.sortedApplications;
   if (filterStatus.value)
     list = list.filter((a) => a.currentStatus === filterStatus.value);
-  if (filterPriority.value)
-    list = list.filter(
-      (a) => (a.priority ?? 'medium') === filterPriority.value,
-    );
   const q = searchQuery.value.trim().toLowerCase();
   if (q) {
     list = list.filter(
@@ -71,16 +62,12 @@ const filteredApplications = computed(() => {
 });
 
 const hasActiveFilters = computed(
-  () =>
-    searchQuery.value.trim() !== '' ||
-    filterStatus.value !== '' ||
-    filterPriority.value !== '',
+  () => searchQuery.value.trim() !== '' || filterStatus.value !== '',
 );
 
 function clearAllFilters() {
   setSearch('');
   filterStatus.value = '';
-  filterPriority.value = '';
 }
 
 onMounted(() => {
@@ -253,13 +240,6 @@ async function handleDelete(): Promise<void> {
         placeholder="All Statuses"
         trigger-class="min-w-32.5"
       />
-      <FilterSelect
-        v-model="filterPriority"
-        :options="prioritySelectOptions"
-        all-label="All Priorities"
-        placeholder="All Priorities"
-        trigger-class="min-w-32.5"
-      />
     </div>
 
     <!-- ── Active Filters Summary ───────────────────────────────────────── -->
@@ -294,19 +274,6 @@ async function handleDelete(): Promise<void> {
               variant="ghost"
               class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer h-auto rounded-full"
               @click="filterStatus = ''"
-            >
-              ×
-            </Button>
-          </span>
-          <span
-            v-if="filterPriority !== ''"
-            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-panel border border-edge text-xs font-medium text-body"
-          >
-            {{ priorityLabel(filterPriority) }}
-            <Button
-              variant="ghost"
-              class="text-subtle hover:text-red-400 font-bold leading-none cursor-pointer h-auto rounded-full"
-              @click="filterPriority = ''"
             >
               ×
             </Button>
@@ -361,11 +328,6 @@ async function handleDelete(): Promise<void> {
                 class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-subtle border-b border-edge"
               >
                 Status
-              </th>
-              <th
-                class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-subtle border-b border-edge max-sm:hidden"
-              >
-                Priority
               </th>
               <th
                 class="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-subtle border-b border-edge max-md:hidden"
@@ -433,9 +395,6 @@ async function handleDelete(): Promise<void> {
               ></td>
               <td class="px-4 py-3 border-b border-edge">
                 <StatusBadge :status="a.currentStatus" />
-              </td>
-              <td class="px-4 py-3 border-b border-edge max-sm:hidden">
-                <PriorityBadge :priority="a.priority ?? 'medium'" />
               </td>
               <td class="px-4 py-3 border-b border-edge max-md:hidden">
                 <div class="flex items-center gap-2 min-w-28">

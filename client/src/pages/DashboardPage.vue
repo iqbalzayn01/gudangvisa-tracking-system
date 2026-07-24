@@ -15,11 +15,12 @@ import { useAuthStore } from '../stores/auth.store';
 import { useApplicationStore } from '../stores/application.store';
 import { useClientStore } from '../stores/client.store';
 import StatusBadge from '../components/StatusBadge.vue';
-import PriorityBadge from '../components/PriorityBadge.vue';
 import type { ExpiringDocument } from '../types';
 import { formatDate, expiryState, expiryClasses, daysUntil } from '../utils/formatters';
 import {
-  STATUS_PHASES,
+  APPLICATION_STATUSES,
+  applicationStatusLabel,
+  statusBarClass,
   documentTypeLabel,
   visaTypeLabel,
 } from '../utils/labels';
@@ -113,15 +114,15 @@ const upcomingAppointments = computed(() =>
     .slice(0, 4),
 );
 
-// Distribution by KITAS lifecycle phase (groups the 16 granular stages).
+// Distribution across the 6-stage KITAS lifecycle.
 const statusDistribution = computed(() => {
   const total = applicationStore.totalCount || 1;
-  return STATUS_PHASES.map((phase) => {
-    const count = applicationStore.countByPhase[phase.key] ?? 0;
+  return APPLICATION_STATUSES.map((status) => {
+    const count = applicationStore.countByStatus[status] ?? 0;
     return {
-      key: phase.key,
-      label: phase.label,
-      color: phase.color,
+      key: status,
+      label: applicationStatusLabel(status),
+      color: statusBarClass(status),
       count,
       pct: Math.round((count / total) * 100),
     };
@@ -290,10 +291,6 @@ const statusDistribution = computed(() => {
               <span class="text-sm text-heading font-medium truncate flex-1">{{
                 a.client?.name ?? '—'
               }}</span>
-              <PriorityBadge
-                :priority="a.priority ?? 'medium'"
-                class="max-sm:hidden"
-              />
               <StatusBadge :status="a.currentStatus" />
               <span
                 class="text-xs text-subtle whitespace-nowrap max-md:hidden"

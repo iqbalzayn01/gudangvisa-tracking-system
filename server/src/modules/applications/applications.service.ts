@@ -16,7 +16,6 @@ const DEFAULT_CHECKLIST: Record<string, ChecklistItem[]> = {
   B211A: [
     { name: 'Passport (min 6 months validity)', isChecked: false },
     { name: 'Passport-size Photo (4x6)', isChecked: false },
-    { name: 'Sponsor Letter', isChecked: false },
     { name: 'Bank Statement', isChecked: false },
   ],
   KITAS_WORKING: [
@@ -55,24 +54,24 @@ const DEFAULT_CHECKLIST: Record<string, ChecklistItem[]> = {
 type ApplicationStatus = UpdateStatusInput['status'];
 
 /**
- * Pipeline progress per status. Terminal-failure and hold statuses
- * (rejected / cancelled / on_hold) are absent on purpose: they freeze the
- * last reached progress instead of resetting it.
+ * Pipeline progress per status. `cancelled` is absent on purpose: it
+ * freezes the last reached progress instead of resetting it.
  */
 const STATUS_PROGRESS: Partial<Record<ApplicationStatus, number>> = {
   draft: 0,
-  document_collection: 10,
-  document_verification: 20,
-  document_revision: 25,
-  submission_to_immigration: 35,
-  immigration_review: 45,
-  biometric_scheduled: 55,
-  biometric_completed: 65,
-  immigration_processing: 75,
-  approval_pending: 85,
-  approved: 90,
-  evisa_issued: 95,
+  document_verification: 25,
+  immigration_processing: 50,
+  approval_pending: 75,
   completed: 100,
+};
+
+const STATUS_LABELS: Record<ApplicationStatus, string> = {
+  draft: 'Draft',
+  document_verification: 'Document Verification',
+  immigration_processing: 'Immigration Processing',
+  approval_pending: 'Approval Pending',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
 };
 
 const MAX_REFERENCE_ATTEMPTS = 3;
@@ -120,7 +119,6 @@ export class ApplicationsService {
           assignedStaffId: staffId,
           visaType: data.visaType,
           status: 'draft',
-          priority: data.priority ?? 'medium',
           progressPercentage: 0,
           notes: data.notes ?? null,
           checklist,
@@ -164,7 +162,9 @@ export class ApplicationsService {
     return await this.repository.updateStatus(appId, {
       fromStatus: app.status,
       toStatus: data.status,
-      description: data.description,
+      description:
+        data.description?.trim() ||
+        `Status updated to ${STATUS_LABELS[data.status]}.`,
       staffId,
       ...(progressPercentage !== undefined && { progressPercentage }),
     });

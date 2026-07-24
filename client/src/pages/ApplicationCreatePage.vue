@@ -7,10 +7,9 @@ import { createApplication } from '../api/applications.api';
 import { useClientStore } from '../stores/client.store';
 import { useApplicationStore } from '../stores/application.store';
 import { useNotificationStore } from '../stores/notification.store';
-import type { Application, Priority, VisaType } from '../types';
+import type { Application, VisaType } from '../types';
 import {
   VISA_TYPE_OPTIONS,
-  PRIORITY_OPTIONS,
   visaTypeLabel,
   applicationStatusLabel,
 } from '../utils/labels';
@@ -22,13 +21,11 @@ const notify = useNotificationStore();
 
 const clientId = ref('');
 const visaType = ref<VisaType | ''>('');
-const priority = ref<Priority>('medium');
 const notes = ref('');
 const isSubmitting = ref(false);
 const created = ref<Application | null>(null);
 
 const visaTypeOptions = VISA_TYPE_OPTIONS;
-const priorityOptions = PRIORITY_OPTIONS;
 
 onMounted(() => {
   if (!clientStore.hasFetched) clientStore.fetchAll();
@@ -41,7 +38,6 @@ async function handleSubmit(): Promise<void> {
     const application = await createApplication({
       clientId: clientId.value,
       visaType: visaType.value,
-      priority: priority.value,
       notes: notes.value.trim() || undefined,
     });
     applicationStore.addLocal(application);
@@ -57,7 +53,6 @@ async function handleSubmit(): Promise<void> {
 function handleReset(): void {
   clientId.value = '';
   visaType.value = '';
-  priority.value = 'medium';
   notes.value = '';
   created.value = null;
 }
@@ -120,24 +115,6 @@ function handleReset(): void {
         </select>
         <p class="text-xs text-subtle mt-0.5">
           The correct type sets the right document checklist for this case.
-        </p>
-      </div>
-
-      <div class="flex flex-col gap-1.5">
-        <label class="text-[13px] font-semibold text-heading" for="tc-priority">
-          Priority
-        </label>
-        <select
-          id="tc-priority"
-          v-model="priority"
-          class="w-full px-3.5 py-2.5 text-sm text-heading bg-panel-light border border-edge rounded-full outline-none cursor-pointer appearance-none focus:border-red-500 focus:ring-3 focus:ring-red-500/12"
-        >
-          <option v-for="p in priorityOptions" :key="p.value" :value="p.value">
-            {{ p.label }}
-          </option>
-        </select>
-        <p class="text-xs text-subtle mt-0.5">
-          How urgently this application should be handled.
         </p>
       </div>
 

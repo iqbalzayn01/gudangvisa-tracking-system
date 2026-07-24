@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Home, RefreshCw } from 'lucide-vue-next';
+import { Home, RefreshCw, FileText } from 'lucide-vue-next';
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { trackByReference, getPublicDownloadUrl } from '../api/tracking.api';
@@ -154,6 +154,14 @@ onMounted(load);
         </div>
 
         <StatusStepper :current-status="application.currentStatus" />
+
+        <RouterLink
+          :to="`/portal/track/${referenceNumber}/receipt`"
+          class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border border-edge text-body hover:bg-panel-light hover:text-heading transition-colors"
+        >
+          <FileText :size="16" />
+          Unduh Tanda Terima
+        </RouterLink>
 
         <div
           v-if="downloadableDocs.length > 0"

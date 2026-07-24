@@ -22,9 +22,10 @@ function mapClient(c: any): Client {
 export async function createClient(payload: CreateClientPayload): Promise<Client> {
   const { data } = await apiClient.post<ApiResponse<any>>('/client-accounts', {
     fullName: payload.name,
-    passportNumber: payload.passportNumber || 'UNKNOWN',
-    nationality: 'Unknown',
-    phone: payload.contactNumber || ''
+    email: payload.email,
+    passportNumber: payload.passportNumber,
+    nationality: payload.nationality,
+    phone: payload.contactNumber || undefined,
   });
   return mapClient(data.data);
 }

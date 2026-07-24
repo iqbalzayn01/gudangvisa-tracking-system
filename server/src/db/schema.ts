@@ -22,21 +22,11 @@ export const internalRoleEnum = pgEnum('internal_role', ['admin', 'staff']);
 
 export const applicationStatusEnum = pgEnum('application_status', [
   'draft',
-  'document_collection',
   'document_verification',
-  'document_revision',
-  'submission_to_immigration',
-  'immigration_review',
-  'biometric_scheduled',
-  'biometric_completed',
   'immigration_processing',
   'approval_pending',
-  'approved',
-  'evisa_issued',
   'completed',
-  'rejected',
   'cancelled',
-  'on_hold',
 ]);
 
 export const visaTypeEnum = pgEnum('visa_type', [

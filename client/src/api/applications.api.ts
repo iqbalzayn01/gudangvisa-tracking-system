@@ -49,7 +49,6 @@ export function mapApplication(backendData: any): Application {
     clientId: backendData.clientId,
     visaType: backendData.visaType,
     currentStatus: backendData.status,
-    priority: backendData.priority ?? 'medium',
     progress:
       typeof backendData.progressPercentage === 'number' &&
       backendData.progressPercentage > 0
@@ -96,7 +95,6 @@ export async function createApplication(
   const { data } = await apiClient.post<ApiResponse<any>>('/applications', {
     clientId: payload.clientId,
     visaType: payload.visaType,
-    priority: payload.priority ?? 'medium',
     notes: payload.notes,
   });
   return mapApplication(data.data);

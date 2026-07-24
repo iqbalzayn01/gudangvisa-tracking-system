@@ -10,28 +10,14 @@ export type VisaType =
   | 'KITAS_INVESTOR'
   | 'KITAS_RETIREMENT';
 
-/**
- * Full KITAS immigration lifecycle (mirrors backend `application_status`).
- * This is the source of truth for monitoring — no longer collapsed to a
- * handful of generic buckets.
- */
+/** Simplified KITAS immigration lifecycle (mirrors backend `application_status`). */
 export type ApplicationStatus =
   | 'draft'
-  | 'document_collection'
   | 'document_verification'
-  | 'document_revision'
-  | 'submission_to_immigration'
-  | 'immigration_review'
-  | 'biometric_scheduled'
-  | 'biometric_completed'
   | 'immigration_processing'
   | 'approval_pending'
-  | 'approved'
-  | 'evisa_issued'
   | 'completed'
-  | 'rejected'
-  | 'cancelled'
-  | 'on_hold';
+  | 'cancelled';
 
 /** Verification state of an uploaded document (mirrors backend `document_status`). */
 export type DocumentStatus = 'pending' | 'verified' | 'rejected';
@@ -56,8 +42,6 @@ export type DocumentType =
   | 'cv_resume'
   | 'kitas_card'
   | 'other';
-
-export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type BiometricStatus =
   | 'not_scheduled'
@@ -116,7 +100,9 @@ export interface Client {
 
 export interface CreateClientPayload {
   name: string;
-  passportNumber?: string;
+  email: string;
+  passportNumber: string;
+  nationality: string;
   contactNumber?: string;
 }
 
@@ -145,7 +131,6 @@ export interface Application {
   clientId: string;
   visaType: VisaType;
   currentStatus: ApplicationStatus;
-  priority: Priority;
   /** 0–100 completion percentage. */
   progress?: number;
   notes?: string | null;
@@ -168,13 +153,12 @@ export interface Application {
 export interface CreateApplicationPayload {
   clientId: string;
   visaType: VisaType;
-  priority?: Priority;
   notes?: string;
 }
 
 export interface UpdateStatusPayload {
   status: ApplicationStatus;
-  descriptionPublic: string;
+  descriptionPublic?: string;
 }
 
 export interface UpdateBiometricPayload {

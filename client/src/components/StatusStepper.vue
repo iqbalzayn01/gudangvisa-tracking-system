@@ -1,29 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ApplicationStatus } from '../types';
-import { phaseOf, STATUS_PHASES } from '../utils/labels';
+import { STATUS_STEPS, applicationStatusLabel } from '../utils/labels';
 
 const props = defineProps<{ currentStatus: ApplicationStatus }>();
 
-// The visible "happy path" of the lifecycle, by phase.
-const steps = STATUS_PHASES.filter((p) => p.key !== 'exception');
+// The visible "happy path" of the lifecycle.
+const steps = STATUS_STEPS.map((s) => ({
+  key: s,
+  label: applicationStatusLabel(s),
+}));
 
-const isRejected = computed(
-  () =>
-    props.currentStatus === 'rejected' || props.currentStatus === 'cancelled',
-);
-const isOnHold = computed(() => props.currentStatus === 'on_hold');
+const isCancelled = computed(() => props.currentStatus === 'cancelled');
 
 const currentIdx = computed(() => {
-  if (isRejected.value || isOnHold.value) return -1;
-  const phase = phaseOf(props.currentStatus);
-  return steps.findIndex((s) => s.key === phase);
+  if (isCancelled.value) return -1;
+  return STATUS_STEPS.indexOf(props.currentStatus);
 });
 
 // The application is fully finished — there's no further step to be "in
 // progress" toward, so the last dot (Completed) reads as done, not current.
 const isFinished = computed(() => props.currentStatus === 'completed');
-
 </script>
 
 <template>
@@ -82,40 +79,9 @@ const isFinished = computed(() => props.currentStatus === 'completed');
       </template>
     </div>
 
-    <!-- On hold indicator -->
+    <!-- Cancelled / rejected branch indicator -->
     <div
-      v-if="isOnHold"
-      class="mt-10 flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20"
-    >
-      <div
-        class="w-9 h-9 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <line x1="10" y1="15" x2="10" y2="9" />
-          <line x1="14" y1="15" x2="14" y2="9" />
-        </svg>
-      </div>
-      <div>
-        <p class="text-sm font-semibold text-yellow-500">Application On Hold</p>
-        <p class="text-xs text-yellow-500/70">
-          Processing is temporarily paused. See the tracking history for details.
-        </p>
-      </div>
-    </div>
-
-    <!-- Rejected / cancelled branch indicator -->
-    <div
-      v-else-if="isRejected"
+      v-if="isCancelled"
       class="mt-10 flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20"
     >
       <div
@@ -137,9 +103,7 @@ const isFinished = computed(() => props.currentStatus === 'completed');
         </svg>
       </div>
       <div>
-        <p class="text-sm font-semibold text-rose-400">
-          Application {{ currentStatus === 'cancelled' ? 'Cancelled' : 'Rejected' }}
-        </p>
+        <p class="text-sm font-semibold text-rose-400">Application Cancelled</p>
         <p class="text-xs text-rose-400/70">
           Please check the tracking history for details.
         </p>
